@@ -1,3 +1,5 @@
 chromadb
 pypdf
 requests
+fastapi
+uvicorn[standard]
