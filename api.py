@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from ask import SYSTEM_PROMPT, build_prompt, retrieve
 from config import COLLECTION, DB_DIR
-from ollama_client import chat
+from ollama_client import OllamaError, chat
 
 app = FastAPI(title="Local RAF Document Assistant")
 
@@ -38,8 +38,11 @@ def ask(body: Question):
         raise HTTPException(status_code=400, detail="Question is empty.")
 
     collection = get_collection()
-    hits = retrieve(collection, body.question)
-    text = chat(SYSTEM_PROMPT, build_prompt(body.question, hits))
+    try:
+        hits = retrieve(collection, body.question)
+        text = chat(SYSTEM_PROMPT, build_prompt(body.question, hits))
+    except (OllamaError, SystemExit):
+        raise HTTPException(status_code=503, detail="Language model backend is not reachable.")
 
     sources = [
         Source(source=meta["source"], page=meta["page"], similarity=round(1 - distance, 2))

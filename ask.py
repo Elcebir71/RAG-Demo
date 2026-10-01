@@ -29,9 +29,9 @@ def build_prompt(question, hits):
     return f"Context:\n{context}\n\nQuestion: {question}"
 
 
-def answer(collection, question):
-    hits = retrieve(collection, question)
-    print("\n" + chat(SYSTEM_PROMPT, build_prompt(question, hits)))
+def answer(collection, body):
+    hits = retrieve(collection)
+    print("\n" + chat(SYSTEM_PROMPT, build_prompt(body.question, hits)))
     print("\nSources:")
     for n, (_, meta, distance) in enumerate(hits, start=1):
         print(f"  [{n}] {meta['source']}, page {meta['page']}  (similarity {1 - distance:.2f})")
@@ -45,7 +45,10 @@ def main():
         sys.exit("No index found. Run: python ingest.py")
 
     if len(sys.argv) > 1:  # one-shot: python ask.py "your question"
-        answer(collection, " ".join(sys.argv[1:]))
+        class Body:
+            def __init__(self, question):
+                self.question = question
+        answer(collection, Body(" ".join(sys.argv[1:])))
         return
 
     print("Ask a question about your documents (empty line to quit).")
