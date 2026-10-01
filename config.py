@@ -1,6 +1,7 @@
 """Central settings for the RAG demo. Change models or sizes here."""
+import os
 
-OLLAMA_URL = "http://localhost:11434"
+OLLAMA_URL = os.getenv("OLLAMA_URL","http://localhost:11434")
 
 EMBED_MODEL = "bge-m3"     # multilingual embedding model (Dutch, Turkish, English, ...)
 CHAT_MODEL = "llama3.2"    # small local LLM (about 2 GB)

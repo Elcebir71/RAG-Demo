@@ -106,3 +106,5 @@ Re-run `ingest.py` whenever you add or remove documents; it rebuilds the index f
 ## Author
 
 Hakan Şahin — [hakansahin.dev](https://hakansahin.dev)
+
+Documents: Microsoft Learn (https://learn.microsoft.com), licensed under CC BY 4.0
