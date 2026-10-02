@@ -11,7 +11,7 @@
 
   <rect width="800" height="450" fill="url(#bg)"/>
 
-  <text x="40" y="62" fill="#f8fafc" font-size="30" font-weight="700">Local RAG Document Assistant</text>
+  <text x="40" y="62" fill="#f8fafc" font-size="30" font-weight="700">RAG Document Assistant</text>
   <text x="40" y="92" fill="#94a3b8" font-size="16">Ask questions about your own PDFs — answers with page-level citations</text>
 
   <!-- Documents -->
@@ -36,7 +36,7 @@
     <path d="M39 32 v42 a36 10 0 0 0 72 0 v-42" fill="#0ea5e9" opacity="0.85"/>
     <ellipse cx="75" cy="53" rx="36" ry="10" fill="none" stroke="#0c4a6e" stroke-width="2"/>
     <text x="75" y="118" fill="#f8fafc" font-size="15" font-weight="600" text-anchor="middle">Vector DB</text>
-    <text x="75" y="137" fill="#94a3b8" font-size="12" text-anchor="middle">bge-m3 · ChromaDB</text>
+    <text x="75" y="137" fill="#94a3b8" font-size="12" text-anchor="middle">ChromaDB · cosine</text>
   </g>
 
   <line x1="396" y1="225" x2="434" y2="225" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
@@ -51,8 +51,8 @@
     <line x1="62" y1="44" x2="88" y2="44" stroke="#a78bfa" stroke-width="2"/>
     <line x1="62" y1="44" x2="75" y2="64" stroke="#a78bfa" stroke-width="2"/>
     <line x1="88" y1="44" x2="75" y2="64" stroke="#a78bfa" stroke-width="2"/>
-    <text x="75" y="118" fill="#f8fafc" font-size="15" font-weight="600" text-anchor="middle">Local LLM</text>
-    <text x="75" y="137" fill="#94a3b8" font-size="12" text-anchor="middle">Ollama · llama3.2</text>
+    <text x="75" y="118" fill="#f8fafc" font-size="15" font-weight="600" text-anchor="middle">Language model</text>
+    <text x="75" y="137" fill="#94a3b8" font-size="12" text-anchor="middle">Azure OpenAI · Ollama</text>
   </g>
 
   <line x1="596" y1="225" x2="634" y2="225" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
@@ -68,6 +68,6 @@
     <text x="60" y="137" fill="#94a3b8" font-size="12" text-anchor="middle">+ sources [1][2]</text>
   </g>
 
-  <text x="40" y="380" fill="#cbd5e1" font-size="14">100% local · no API keys · English / Dutch / Turkish</text>
-  <text x="40" y="404" fill="#64748b" font-size="13">Python · Ollama · ChromaDB · Retrieval-Augmented Generation</text>
+  <text x="40" y="380" fill="#cbd5e1" font-size="14">Runs on Azure Container Apps or fully local · English / Dutch / Turkish</text>
+  <text x="40" y="404" fill="#64748b" font-size="13">Python · FastAPI · Docker · Azure OpenAI · ChromaDB</text>
 </svg>

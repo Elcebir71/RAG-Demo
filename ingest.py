@@ -1,27 +1,32 @@
 """Step 1 - Indexing: read documents, split into chunks, embed, store in ChromaDB."""
 
+import sys
 from pathlib import Path
 
 import chromadb
 from pypdf import PdfReader
 
-from config import CHUNK_OVERLAP, CHUNK_SIZE, COLLECTION, DB_DIR, DOCS_DIR
-from ollama_client import OllamaError, embed
+from config import BACKEND, CHUNK_OVERLAP, CHUNK_SIZE, COLLECTION, DB_DIR, DOCS_DIR
+from llm_client import LLMError, LLMUnavailable, embed
 
-BATCH_SIZE = 8  # small batches are easier on RAM / GPU memory
+BATCH_SIZE = 8  # small batches are easier on RAM / GPU memory and on rate limits
 
 
 def embed_safely(texts, ids):
     """Embed a batch; if it fails, retry one by one and skip only the failing chunks."""
     try:
         return list(zip(ids, texts, embed(texts)))
-    except OllamaError as error:
+    except LLMUnavailable:
+        raise  # nothing will work; stop instead of failing chunk by chunk
+    except LLMError as error:
         print(f"  Batch failed ({error}). Retrying chunks one by one...")
     results = []
     for chunk_id, text in zip(ids, texts):
         try:
             results.append((chunk_id, text, embed([text])[0]))
-        except OllamaError as error:
+        except LLMUnavailable:
+            raise
+        except LLMError as error:
             print(f"  Skipped {chunk_id}: {error}")
     return results
 
@@ -69,6 +74,9 @@ def main():
         print(f"No documents found in '{DOCS_DIR}/'. Add some PDF, TXT or MD files first.")
         return
 
+    print(f"Indexing {len(documents)} chunks with the '{BACKEND}' backend into '{COLLECTION}'")
+    embed(documents[:1])  # fail fast, before the old index is deleted
+
     client = chromadb.PersistentClient(path=DB_DIR)
     try:
         client.delete_collection(COLLECTION)  # rebuild from scratch each run
@@ -96,4 +104,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except LLMError as error:
+        sys.exit(f"Model backend error: {error}")

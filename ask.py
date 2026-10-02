@@ -4,8 +4,8 @@ import sys
 
 import chromadb
 
-from config import COLLECTION, DB_DIR, TOP_K
-from ollama_client import chat, embed
+from config import BACKEND, COLLECTION, DB_DIR, TOP_K
+from llm_client import LLMError, chat, embed
 
 SYSTEM_PROMPT = (
     "You are a helpful assistant. Answer the question using ONLY the context below. "
@@ -29,9 +29,9 @@ def build_prompt(question, hits):
     return f"Context:\n{context}\n\nQuestion: {question}"
 
 
-def answer(collection, body):
-    hits = retrieve(collection)
-    print("\n" + chat(SYSTEM_PROMPT, build_prompt(body.question, hits)))
+def answer(collection, question):
+    hits = retrieve(collection, question)
+    print("\n" + chat(SYSTEM_PROMPT, build_prompt(question, hits)))
     print("\nSources:")
     for n, (_, meta, distance) in enumerate(hits, start=1):
         print(f"  [{n}] {meta['source']}, page {meta['page']}  (similarity {1 - distance:.2f})")
@@ -42,16 +42,13 @@ def main():
     try:
         collection = client.get_collection(COLLECTION)
     except Exception:
-        sys.exit("No index found. Run: python ingest.py")
+        sys.exit(f"No index found for the '{BACKEND}' backend. Run: python ingest.py")
 
     if len(sys.argv) > 1:  # one-shot: python ask.py "your question"
-        class Body:
-            def __init__(self, question):
-                self.question = question
-        answer(collection, Body(" ".join(sys.argv[1:])))
+        answer(collection, " ".join(sys.argv[1:]))
         return
 
-    print("Ask a question about your documents (empty line to quit).")
+    print(f"Ask a question about your documents (backend: {BACKEND}, empty line to quit).")
     while True:
         question = input("\n> ").strip()
         if not question:
@@ -60,4 +57,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except LLMError as error:
+        sys.exit(f"Model backend error: {error}")
