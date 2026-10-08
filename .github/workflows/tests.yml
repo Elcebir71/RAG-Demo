@@ -1,12 +1,13 @@
 name: tests
 
-# Run on every pull request, and on every push to main (that is, after a merge).
+# Tests run on every pull request and on every push to main.
+# A push to main (that is, a merge) also deploys, but only after the tests pass.
 on:
   push:
     branches: [main]
   pull_request:
 
-# The workflow only reads the code; it gets no write access to the repository.
+# Default for all jobs: read the code, nothing else.
 permissions:
   contents: read
 
@@ -30,3 +31,49 @@ jobs:
       # No Ollama, no Azure and no secrets needed: the tests use a scripted fake model.
       - name: Run tests
         run: python -m pytest -q
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency: deploy   # one deployment at a time
+    permissions:
+      contents: read
+      id-token: write     # lets the job get an OIDC token; no Azure password is stored
+    env:
+      ACR: ragdemohakan71
+      RESOURCE_GROUP: rg-rag-demo
+      APP: rag-demo
+      INDEX_IMAGE: ragdemohakan71.azurecr.io/rag-index:v1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sign in to Azure (OpenID Connect)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push the image
+        run: |
+          az acr login -n "$ACR"
+          IMAGE="$ACR.azurecr.io/rag-demo:${GITHUB_SHA::7}"
+          docker build --build-arg INDEX_IMAGE="$INDEX_IMAGE" -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy to Azure Container Apps
+        run: az containerapp update -n "$APP" -g "$RESOURCE_GROUP" --image "$IMAGE" --query properties.latestRevisionName -o tsv
+
+      # The app scales to zero, so the first request can take a while: retry for up to 2.5 minutes.
+      - name: Check that the new version answers
+        run: |
+          HOST=$(az containerapp show -n "$APP" -g "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn -o tsv)
+          for attempt in $(seq 1 10); do
+            if curl -fsS --max-time 20 "https://$HOST/health"; then exit 0; fi
+            echo "Not ready yet (attempt $attempt), waiting..."
+            sleep 15
+          done
+          echo "The app did not answer /health after deployment."
+          exit 1
