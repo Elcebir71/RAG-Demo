@@ -1,4 +1,4 @@
-# rag-demo — Local RAG assistant for your own documents
+- **Runs fully local by default** — models run via [Ollama](https://ollama.com); set Azure OpenAI variables to run in the cloud
 
 A small, fully local **Retrieval-Augmented Generation (RAG)** pipeline in plain Python.
 Drop PDFs into a folder, index them, and ask questions. Answers are grounded in your
@@ -6,7 +6,7 @@ documents and cite the exact file and page they came from.
 
 - **No API keys, no cost, no data leaves your machine** — models run locally via [Ollama](https://ollama.com)
 - **Multilingual** — ask in English, Dutch or Turkish; documents can be in any of them
-- **Small and readable** — about 200 lines, no frameworks, every RAG step visible
+- **Small and readable** — no frameworks, every RAG and agent step visible in plain Python
 
 ## How it works
 
@@ -23,7 +23,7 @@ Answer with source citations  [1] az-900.pdf, page 14
 | File | Role |
 |---|---|
 | `config.py` | All settings: models, chunk size, overlap, number of retrieved chunks |
-| `ollama_client.py` | Thin wrapper around the Ollama REST API (`/api/embed`, `/api/chat`) |
+  | `llm_client.py` | Model backend: Ollama locally, Azure OpenAI in the cloud; chat, embeddings and tool calling |
 | `ingest.py` | **Indexing** — read documents, chunk, embed, store |
 | `ask.py` | **Retrieval + generation** — find relevant chunks, build the prompt, answer |
 | `tools.py` | Tool registry: schemas, risk levels, validation and business rules |
@@ -136,7 +136,7 @@ action. The guarantees above do not depend on the model; its usefulness does.
 ```bash
 # PowerShell: $env:EMAIL_ALLOWLIST = "you@example.com"; $env:ADMIN_API_KEY = "local-test-key"
 python agent.py "Email you@example.com with subject 'Test' and body 'Hello'"
-python agent.py --approve 1
+python agent.py --approve <id>   # the id printed by the previous command
 python -m pytest -q          # needs: pip install -r requirements-dev.txt
 ```
 

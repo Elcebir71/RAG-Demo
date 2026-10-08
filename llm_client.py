@@ -175,7 +175,7 @@ def chat_with_tools(messages, tools):
             name=function.get("name", ""),
             arguments=_parse_arguments(function.get("arguments")),
         ))
-        # Keep only the fields both backends accept when this message is sent back.
+    # Keep only the fields both backends accept when this message is sent back.
     reply = {"role": "assistant", "content": message.get("content") or ""}
     if message.get("tool_calls"):
         reply["tool_calls"] = message["tool_calls"]
