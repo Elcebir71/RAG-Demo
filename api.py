@@ -1,14 +1,19 @@
-"""REST API for the RAG assistant."""
+"""REST API for the RAG assistant and the agent."""
 
+import json
 import logging
+import secrets
+from typing import Any, Literal
 
 import chromadb
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
+import agent
+import store
 from ask import SYSTEM_PROMPT, build_prompt, retrieve
-from config import BACKEND, COLLECTION, DB_DIR
+from config import ADMIN_API_KEY, BACKEND, COLLECTION, DB_DIR
 from llm_client import LLMError, chat
 
 log = logging.getLogger("rag")
@@ -70,3 +75,74 @@ def ask(body: Question):
         for _, meta, distance in hits
     ]
     return Answer(answer=text, sources=sources)
+# --- Agent ----------------------------------------------------------------------
+
+Status = Literal["pending", "rejected", "running", "done", "failed"]
+
+
+class AgentRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=500)
+
+
+class ActionOut(BaseModel):
+    id: int
+    tool: str
+    args: Any  # shown so a reviewer sees exactly what they approve
+    risk: str | None
+    status: Status
+    detail: str | None
+
+
+class AgentReply(BaseModel):
+    answer: str
+    actions: list[ActionOut]
+
+
+def _out(action):
+    return {**action, "args": json.loads(action["args"])}
+
+
+def require_admin(x_admin_key: str = Header(default="")):
+    """Approval is a human decision, so it needs a key that neither the model nor the public has."""
+    if not ADMIN_API_KEY:
+        raise HTTPException(status_code=503, detail="Approvals are disabled: ADMIN_API_KEY is not set.")
+    if not secrets.compare_digest(x_admin_key.encode(), ADMIN_API_KEY.encode()):
+        raise HTTPException(status_code=401, detail="Invalid admin key.")
+
+
+@app.post("/agent", response_model=AgentReply)
+def run_agent(body: AgentRequest):
+    if not body.message.strip():
+        raise HTTPException(status_code=400, detail="Message is empty.")
+    try:
+        result = agent.run_agent(body.message)
+    except LLMError as error:
+        log.error("Model backend error: %s", error)
+        raise HTTPException(status_code=503, detail="The language model backend is not available.")
+    return {"answer": result["answer"], "actions": [_out(a) for a in result["actions"]]}
+
+
+@app.get("/actions", response_model=list[ActionOut], dependencies=[Depends(require_admin)])
+def list_actions(status: Status | None = None):
+    return [_out(a) for a in store.list_actions(status)]
+
+
+@app.post("/actions/{action_id}/approve", response_model=ActionOut, dependencies=[Depends(require_admin)])
+def approve_action(action_id: int):
+    try:
+        return _out(agent.approve(action_id))
+    except LookupError:
+        raise HTTPException(status_code=404, detail="No such action.")
+
+
+@app.post("/actions/{action_id}/reject", response_model=ActionOut, dependencies=[Depends(require_admin)])
+def reject_action(action_id: int):
+    try:
+        return _out(agent.reject(action_id))
+    except LookupError:
+        raise HTTPException(status_code=404, detail="No such action.")
+
+
+@app.get("/actions/{action_id}/audit", dependencies=[Depends(require_admin)])
+def action_audit(action_id: int):
+    return store.audit_log(action_id)
