@@ -52,7 +52,7 @@ Answer with source citations  [1] file.pdf, page 13
 | `GET` | `/health` | Liveness check; also reports the active backend |
 | `POST` | `/ask` | Body `{"question": "..."}` → `{"answer": "...", "sources": [...]}` |
 | `GET` | `/docs` | Interactive OpenAPI page |
-| `POST` | `/agent` | Body `{"message": "..."}` → answer plus the actions the agent proposed |
+| `POST` | `/agent` | Body `{"message": "..."}` → answer plus the actions the agent proposed (needs `x-admin-key`) |
 | `GET` | `/actions?status=pending` | Actions waiting for review (needs `x-admin-key`) |
 | `POST` | `/actions/{id}/approve` or `/reject` | Human decision (needs `x-admin-key`) |
 | `GET` | `/actions/{id}/audit` | Audit trail of one action (needs `x-admin-key`) |
@@ -108,6 +108,14 @@ request ─▶ model proposes tool calls
 Email runs in **demo mode**: an approved email goes to an `outbox` table and is not
 sent. A public demo that sends real email could be abused as a spam relay.
 
+**Limits of this demo, stated openly**
+
+- `/agent` needs the admin key too. Each request can make up to `MAX_STEPS` model calls,
+  so a public agent endpoint would let anyone spend the Azure budget.
+- Agent state is SQLite inside the container. With `--min-replicas 0` the container stops
+  when idle, and pending actions and the audit log are lost. Fine for a demo where an
+  action is approved within minutes; a real deployment would use PostgreSQL (see roadmap).
+  
 **Model choice, measured, not assumed.** Same tool definition, three runs each:
 
 | Model | System prompt | Unwanted tool calls | Correct tool calls |

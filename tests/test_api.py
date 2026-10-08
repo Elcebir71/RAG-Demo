@@ -30,7 +30,7 @@ def isolated(tmp_path, monkeypatch):
 
 
 def create_pending():
-    response = client.post("/agent", json={"message": "Email hakan@example.com"})
+    response = client.post("/agent", json={"message": "Email hakan@example.com"}, headers={"x-admin-key": KEY})
     assert response.status_code == 200
     [action] = response.json()["actions"]
     assert action["status"] == "pending"
@@ -82,4 +82,9 @@ def test_invalid_status_filter_returns_422():
 
 
 def test_message_length_is_limited():
-    assert client.post("/agent", json={"message": "x" * 501}).status_code == 422
+    response = client.post("/agent", json={"message": "x" * 501}, headers={"x-admin-key": KEY})
+    assert response.status_code == 422
+
+def test_agent_requires_a_valid_key():
+    assert client.post("/agent", json={"message": "hi"}).status_code == 401
+    assert client.post("/agent", json={"message": "hi"}, headers={"x-admin-key": "wrong"}).status_code == 401
