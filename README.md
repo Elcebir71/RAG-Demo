@@ -26,6 +26,10 @@ Answer with source citations  [1] az-900.pdf, page 14
 | `ollama_client.py` | Thin wrapper around the Ollama REST API (`/api/embed`, `/api/chat`) |
 | `ingest.py` | **Indexing** — read documents, chunk, embed, store |
 | `ask.py` | **Retrieval + generation** — find relevant chunks, build the prompt, answer |
+| `tools.py` | Tool registry: schemas, risk levels, validation and business rules |
+| `store.py` | SQLite state: actions, audit log, notes, outbox |
+| `agent.py` | Agent loop, approve and reject |
+| `tests/` | Tests for the guarantees, with a scripted fake model |
 
 ## Example
 
@@ -73,6 +77,71 @@ python ask.py "Hoeveel vakantiedagen krijg ik?"      # single question
 ```
 
 Re-run `ingest.py` whenever you add or remove documents; it rebuilds the index from scratch.
+
+## Agent with guarded actions
+
+The assistant can also act: search the documents, save notes and send email.
+The design follows one rule: **the model proposes, the application decides.**
+A prompt guides the model's reasoning, but permissions, validation, approval and
+recovery are enforced in code, where no prompt or document can change them.
+
+```
+request ─▶ model proposes tool calls
+              │
+              ▼
+        tools.validate()  ── unknown tool, bad arguments,
+              │              recipient not on allowlist ──▶ rejected (logged)
+              ▼
+         risk level?
+     read / low ──▶ run now ──▶ done / failed (logged)
+     high ───────▶ pending ──▶ human approves with admin key ──▶ re-check ──▶ run
+```
+
+| Tool | Risk | What the application does |
+|---|---|---|
+| `search_documents` | read | Runs automatically |
+| `save_note` | low | Runs automatically and is logged |
+| `send_email` | high | Waits for approval; recipient must be on `EMAIL_ALLOWLIST` |
+
+**Guarantees, each covered by a test in `tests/`**
+
+- Unknown tools, extra fields and malformed arguments are rejected (strict Pydantic schemas).
+- A recipient outside the allowlist is rejected, even when a document contains
+  an injected instruction and the model follows it.
+- Nothing high-risk runs without approval, and approval needs `ADMIN_API_KEY`.
+  Without a configured key, approvals are disabled (fail closed).
+- Approving twice runs once: every status change is a conditional update.
+- Rules are checked again at approval time, not only at proposal time.
+- Failures are recorded, never lost; the loop stops after `MAX_STEPS` rounds.
+- Every status change is written to an audit log.
+
+Email runs in **demo mode**: an approved email goes to an `outbox` table and is not
+sent. A public demo that sends real email could be abused as a spam relay.
+
+**Model choice, measured, not assumed.** Same tool definition, three runs each:
+
+| Model | System prompt | Unwanted tool calls | Correct tool calls |
+|---|---|---|---|
+| llama3.2 (3B) | no | 3/3 | 3/3 |
+| llama3.2 (3B) | yes | 1/3 | 3/3 |
+| qwen2.5:7b | no | 0/3 | 3/3 |
+| qwen2.5:7b | yes | 0/3 | 3/3 |
+
+`qwen2.5:7b` is the default (`AGENT_MODEL`). Known limitation: after a document
+search it often asks the user for confirmation instead of proposing the next
+action. The guarantees above do not depend on the model; its usefulness does.
+
+**Try it**
+
+```bash
+# PowerShell: $env:EMAIL_ALLOWLIST = "you@example.com"; $env:ADMIN_API_KEY = "local-test-key"
+python agent.py "Email you@example.com with subject 'Test' and body 'Hello'"
+python agent.py --approve 1
+python -m pytest -q          # needs: pip install -r requirements-dev.txt
+```
+
+API: `POST /agent`, and with the `x-admin-key` header: `GET /actions?status=pending`,
+`POST /actions/{id}/approve`, `POST /actions/{id}/reject`, `GET /actions/{id}/audit`.
 
 ## Design choices
 
