@@ -125,9 +125,10 @@ sent. A public demo that sends real email could be abused as a spam relay.
 | qwen2.5:7b | no | 0/3 | 3/3 |
 | qwen2.5:7b | yes | 0/3 | 3/3 |
 
-`qwen2.5:7b` is the default (`AGENT_MODEL`). Known limitation: after a document
-search it often asks the user for confirmation instead of proposing the next
-action. The guarantees above do not depend on the model; its usefulness does.
+`qwen2.5:7b` is the default (`AGENT_MODEL`). After a document search it often
+asks the user for confirmation instead of proposing the next action. With Azure OpenAI
+(`gpt-5-mini`) the same code and prompt complete the task in one go: the search runs and
+the email is held for approval. The guarantees do not depend on the model; its usefulness does.
 
 **Try it**
 
