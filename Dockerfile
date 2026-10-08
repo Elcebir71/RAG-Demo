@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir -r  requirements.txt
 
 # Application code and the prebuilt vector index
 COPY *.py ./
-COPY db/ db/
+COPY /db/ db/
 
 # Ollama runs on the host machine, not inside the container
 ENV OLLAMA_URL=http://host.docker.internal:11434
