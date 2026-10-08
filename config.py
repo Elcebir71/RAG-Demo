@@ -36,3 +36,4 @@ AGENT_MODEL = os.getenv("AGENT_MODEL", "qwen2.5:7b")  # chosen by a small tool-c
 
 # Email recipients the agent may ever propose. Comma separated. Empty = no email at all.
 EMAIL_ALLOWLIST = {a.strip().lower() for a in os.getenv("EMAIL_ALLOWLIST", "").split(",") if a.strip()}
+AGENT_DB = os.getenv("AGENT_DB", "agent.db")  # SQLite file for actions, audit log, notes and outbox
