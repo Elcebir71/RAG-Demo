@@ -1,5 +1,7 @@
 # rag-demo — RAG document assistant with a guarded agent, local or on Azure
 
+[![tests](https://github.com/Elcebir71/rag-demo/actions/workflows/tests.yml/badge.svg)](https://github.com/Elcebir71/rag-demo/actions/workflows/tests.yml)
+
 ![Architecture](project-rag-demo.svg)
 
 A small **Retrieval-Augmented Generation (RAG)** service in plain Python. It indexes
