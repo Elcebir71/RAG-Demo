@@ -70,7 +70,7 @@ Answer with source citations  [1] file.pdf, page 13
 ## Agent with guarded actions
 
 The assistant can also act: search the documents, save notes and send email.
-The agent currently runs locally; the live demo serves the RAG endpoints above.
+On the live demo the RAG endpoints are public; the agent endpoints need the admin key.
 The design follows one rule: **the model proposes, the application decides.**
 A prompt guides the model's reasoning, but permissions, validation, approval and
 recovery are enforced in code, where no prompt or document can change them.
@@ -181,10 +181,13 @@ az group create -n <rg> -l swedencentral
 az acr create -g <rg> -n <acr> --sku Basic
 az containerapp env create -n <env> -g <rg> -l swedencentral
 
-# Build and push the image
-docker build -t rag-demo .
+# Vector index image: built by hand, only when the documents change
 az acr login -n <acr>
-docker tag rag-demo <acr>.azurecr.io/rag-demo:v2
+docker build -f Dockerfile.index -t <acr>.azurecr.io/rag-index:v1 .
+docker push <acr>.azurecr.io/rag-index:v1
+
+# App image: GitHub Actions does this on every merge to main (see below)
+docker build --build-arg INDEX_IMAGE=<acr>.azurecr.io/rag-index:v1 -t <acr>.azurecr.io/rag-demo:v2 .
 docker push <acr>.azurecr.io/rag-demo:v2
 
 # Create the app (image pulled with a managed identity, no registry password)
@@ -194,6 +197,21 @@ az containerapp create -n rag-demo -g <rg> --environment <env> `
   --secrets "aoai-key=$env:AZURE_OPENAI_API_KEY" `
   --env-vars "AZURE_OPENAI_ENDPOINT=$env:AZURE_OPENAI_ENDPOINT" "AZURE_OPENAI_API_KEY=secretref:aoai-key"
 ```
+
+### Continuous deployment
+
+Every push to `main` runs the tests. When they pass, GitHub Actions builds the image,
+pushes it to the registry, updates the Container App and checks `/health`
+([workflow](.github/workflows/tests.yml)).
+
+- **No Azure password in GitHub.** The workflow signs in with OpenID Connect. Azure trusts
+  only tokens issued for this repository's `main` branch (a federated credential).
+- **Narrow permissions.** The deploy identity has `AcrPush` on the registry and
+  `Contributor` on the demo's resource group, nothing outside it.
+- **Documents stay out of Git.** The vector index lives in a separate image built from
+  `Dockerfile.index`; the app image copies `db/` from it at build time.
+- **Settings stay in Azure.** `EMAIL_ALLOWLIST` and `ADMIN_API_KEY` (a Container Apps
+  secret) are set once on the app. A deploy only changes the image.
 
 ## Design choices
 
@@ -230,7 +248,7 @@ documents you are allowed to publish.
 - [x] Agent with tool calling, human approval, audit log and tests
 - [ ] Agent state in PostgreSQL (SQLite inside the container is lost on restart)
 - [ ] Azure AI Search instead of an index baked into the image
-- [ ] CI/CD with GitHub Actions
+- [x] CI/CD with GitHub Actions: tests on every pull request, deploy on every merge
 - [ ] Managed identity for Azure OpenAI (no API key at all)
 - [ ] `.docx` and scanned PDF (OCR) support
 
