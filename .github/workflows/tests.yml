@@ -1,0 +1,32 @@
+name: tests
+
+# Run on every pull request, and on every push to main (that is, after a merge).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# The workflow only reads the code; it gets no write access to the repository.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"   # same version as the Dockerfile
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      # No Ollama, no Azure and no secrets needed: the tests use a scripted fake model.
+      - name: Run tests
+        run: python -m pytest -q
