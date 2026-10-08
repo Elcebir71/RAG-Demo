@@ -3,3 +3,4 @@ docs/*
 db/
 .venv/
 __pycache__/
+agent.db

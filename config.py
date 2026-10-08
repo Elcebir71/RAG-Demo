@@ -30,3 +30,11 @@ COLLECTION = "documents-azure" if USE_AZURE else "documents"
 CHUNK_SIZE = 800           # characters per chunk
 CHUNK_OVERLAP = 150        # characters shared between neighbouring chunks
 TOP_K = 4                  # number of chunks retrieved per question
+# --- Agent -------------------------------------------------------------------
+AGENT_MODEL = os.getenv("AGENT_MODEL", "qwen2.5:7b")  # chosen by a small tool-calling test, see README
+
+# Email recipients the agent may ever propose. Comma separated. Empty = no email at all.
+EMAIL_ALLOWLIST = {a.strip().lower() for a in os.getenv("EMAIL_ALLOWLIST", "").split(",") if a.strip()}
+AGENT_DB = os.getenv("AGENT_DB", "agent.db")  # SQLite file for actions, audit log, notes and outbox
+# Key for the approval endpoints. Empty = approvals are disabled (fail closed).
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")

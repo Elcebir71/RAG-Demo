@@ -5,7 +5,8 @@ same code runs unchanged on a laptop and in Azure.
 """
 
 import time
-
+import json
+from dataclasses import dataclass
 import requests
 
 from config import (
@@ -18,6 +19,7 @@ from config import (
     EMBED_MODEL,
     OLLAMA_URL,
     USE_AZURE,
+    AGENT_MODEL,
 )
 
 
@@ -119,3 +121,68 @@ def chat(system_prompt, user_prompt):
     if not text:
         raise LLMError("The model returned an empty answer.")
     return text
+
+# --- Tool calling --------------------------------------------------------------
+
+@dataclass
+class ToolCall:
+    """One tool call proposed by the model, in the same shape for both backends."""
+    id: str
+    name: str
+    arguments: dict | None  # None = the model sent arguments we could not parse
+
+
+@dataclass
+class ModelTurn:
+    """The model's next turn: plain text, proposed tool calls, or both."""
+    content: str
+    tool_calls: list[ToolCall]
+    raw_message: dict  # sent back to the model as-is in the next request
+
+
+def _parse_arguments(raw):
+    """Ollama returns arguments as an object, Azure OpenAI as a JSON string.
+
+    Bad input is not an exception here: it returns None, and the application
+    rejects the call later, the same way it rejects any invalid input.
+    """
+    if isinstance(raw, dict):
+        return raw
+    try:
+        value = json.loads(raw or "{}")
+    except (TypeError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def chat_with_tools(messages, tools):
+    """Send the conversation and the tool definitions; return the model's next turn.
+
+    The model only proposes tool calls. Nothing is executed in this function.
+    """
+    if USE_AZURE:
+        payload = {"model": AZURE_CHAT_DEPLOYMENT, "messages": messages, "tools": tools}
+        message = _azure("chat/completions", payload, retries=2)["choices"][0]["message"]
+    else:
+        payload = {"model": AGENT_MODEL, "stream": False, "messages": messages, "tools": tools}
+        message = _ollama("/api/chat", payload)["message"]
+
+    calls = []
+    for n, call in enumerate(message.get("tool_calls") or []):
+        function = call.get("function") or {}
+        calls.append(ToolCall(
+            id=call.get("id") or f"call_{n}",
+            name=function.get("name", ""),
+            arguments=_parse_arguments(function.get("arguments")),
+        ))
+    # Keep only the fields both backends accept when this message is sent back.
+    reply = {"role": "assistant", "content": message.get("content") or ""}
+    if message.get("tool_calls"):
+        reply["tool_calls"] = message["tool_calls"]
+    return ModelTurn(content=reply["content"], tool_calls=calls, raw_message=reply)
+
+def tool_result_message(call, content):
+    """The message that returns a tool result to the model, in the format each backend expects."""
+    if USE_AZURE:
+        return {"role": "tool", "tool_call_id": call.id, "content": content}
+    return {"role": "tool", "tool_name": call.name, "content": content}
