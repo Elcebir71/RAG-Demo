@@ -1,86 +1,74 @@
-- **Runs fully local by default** — models run via [Ollama](https://ollama.com); set Azure OpenAI variables to run in the cloud
+# rag-demo — RAG document assistant with a guarded agent, local or on Azure
 
-A small, fully local **Retrieval-Augmented Generation (RAG)** pipeline in plain Python.
-Drop PDFs into a folder, index them, and ask questions. Answers are grounded in your
-documents and cite the exact file and page they came from.
+![Architecture](project-rag-demo.svg)
 
-- **No API keys, no cost, no data leaves your machine** — models run locally via [Ollama](https://ollama.com)
-- **Multilingual** — ask in English, Dutch or Turkish; documents can be in any of them
-- **Small and readable** — no frameworks, every RAG and agent step visible in plain Python
+A small **Retrieval-Augmented Generation (RAG)** service in plain Python. It indexes
+your documents, retrieves the passages most relevant to a question, and lets a language
+model answer from those passages only, citing the file and page each claim came from.
+
+The same code runs in two modes, selected by environment variables:
+
+| | Local | Cloud |
+|---|---|---|
+| Chat model | Ollama `llama3.2` | Azure OpenAI `gpt-5-mini` |
+| Embeddings | Ollama `bge-m3` | Azure OpenAI `text-embedding-3-small` |
+| Hosting | your machine | Azure Container Apps |
+| Cost / keys | free, no keys | pay per token, key stored as a secret |
+
+**Live demo:** https://rag-demo.orangeocean-d98c39b7.swedencentral.azurecontainerapps.io
+(scales to zero when idle, so the first request can take a few seconds)
 
 ## How it works
 
 ```
 docs/  (PDF, TXT, MD)
-   │  ingest.py   split into overlapping chunks → embed with bge-m3 → store in ChromaDB
+   │  ingest.py   split into overlapping chunks → embed → store in ChromaDB
    ▼
-db/    (vector database)
-   │  ask.py      embed the question → retrieve top-4 similar chunks → send to llama3.2
+db/    (vector database, one collection per embedding model)
+   │  ask.py / api.py   embed the question → retrieve top-4 chunks → ask the model
    ▼
-Answer with source citations  [1] az-900.pdf, page 14
+Answer with source citations  [1] file.pdf, page 13
 ```
 
 | File | Role |
 |---|---|
-| `config.py` | All settings: models, chunk size, overlap, number of retrieved chunks |
-  | `llm_client.py` | Model backend: Ollama locally, Azure OpenAI in the cloud; chat, embeddings and tool calling |
+| `config.py` | Settings and backend selection from environment variables |
+| `llm_client.py` | One interface (`embed`, `chat`) over Azure OpenAI and Ollama, with rate-limit retries |
 | `ingest.py` | **Indexing** — read documents, chunk, embed, store |
-| `ask.py` | **Retrieval + generation** — find relevant chunks, build the prompt, answer |
-| `tools.py` | Tool registry: schemas, risk levels, validation and business rules |
-| `store.py` | SQLite state: actions, audit log, notes, outbox |
+| `ask.py` | **Retrieval + generation** from the command line |
+| `api.py` | The same pipeline as a REST API (FastAPI) |
+| `tools.py` | Agent tool registry: schemas, risk levels, validation and business rules |
+| `store.py` | Agent state in SQLite: actions, audit log, notes, outbox |
 | `agent.py` | Agent loop, approve and reject |
-| `tests/` | Tests for the guarantees, with a scripted fake model |
+| `tests/` | Tests for the agent's guarantees, with a scripted fake model |
+| `Dockerfile` | Container image with the app and the prebuilt index |
 
-## Example
+## API
 
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/health` | Liveness check; also reports the active backend |
+| `POST` | `/ask` | Body `{"question": "..."}` → `{"answer": "...", "sources": [...]}` |
+| `GET` | `/docs` | Interactive OpenAPI page |
+| `POST` | `/agent` | Body `{"message": "..."}` → answer plus the actions the agent proposed |
+| `GET` | `/actions?status=pending` | Actions waiting for review (needs `x-admin-key`) |
+| `POST` | `/actions/{id}/approve` or `/reject` | Human decision (needs `x-admin-key`) |
+| `GET` | `/actions/{id}/audit` | Audit trail of one action (needs `x-admin-key`) |
+
+```json
+{
+  "answer": "IaaS requires the most user management: you manage the operating systems, data and applications ... [1][3]",
+  "sources": [
+    {"source": "file.pdf", "page": 13, "similarity": 0.65},
+    {"source": "file.pdf", "page": 15, "similarity": 0.51}
+  ]
+}
 ```
-> What is the difference between IaaS, PaaS and SaaS?
-
-IaaS gives you virtual machines, storage and networking that you manage yourself,
-PaaS adds a managed platform so you only deploy your code, and with SaaS you simply
-use finished software ... [1][2]
-
-Sources:
-  [1] az-900.pdf, page 14  (similarity 0.71)
-  [2] az-900.pdf, page 15  (similarity 0.66)
-```
-
-## Setup
-
-**1. Install Ollama** from https://ollama.com/download and pull the models (once, about 3.2 GB):
-
-```bash
-ollama pull bge-m3
-ollama pull llama3.2
-```
-
-**2. Create a virtual environment** (Python 3.10–3.12 recommended):
-
-```bash
-python -m venv .venv
-# Windows:      .venv\Scripts\activate
-# macOS/Linux:  source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-**3. Add documents** to `docs/` and build the index:
-
-```bash
-python ingest.py
-```
-
-**4. Ask questions:**
-
-```bash
-python ask.py                                        # interactive mode
-python ask.py "Hoeveel vakantiedagen krijg ik?"      # single question
-```
-
-Re-run `ingest.py` whenever you add or remove documents; it rebuilds the index from scratch.
 
 ## Agent with guarded actions
 
 The assistant can also act: search the documents, save notes and send email.
+The agent currently runs locally; the live demo serves the RAG endpoints above.
 The design follows one rule: **the model proposes, the application decides.**
 A prompt guides the model's reasoning, but permissions, validation, approval and
 recovery are enforced in code, where no prompt or document can change them.
@@ -134,46 +122,107 @@ action. The guarantees above do not depend on the model; its usefulness does.
 **Try it**
 
 ```bash
-# PowerShell: $env:EMAIL_ALLOWLIST = "you@example.com"; $env:ADMIN_API_KEY = "local-test-key"
-python agent.py "Email you@example.com with subject 'Test' and body 'Hello'"
+# PowerShell: $env:EMAIL_ALLOWLIST = "jan@example.com"; $env:ADMIN_API_KEY = "local-test-key"
+python agent.py "Email jan@example.com with subject 'Test' and body 'Hello'"
 python agent.py --approve <id>   # the id printed by the previous command
-python -m pytest -q          # needs: pip install -r requirements-dev.txt
+python -m pytest -q              # needs: pip install -r requirements-dev.txt
 ```
 
-API: `POST /agent`, and with the `x-admin-key` header: `GET /actions?status=pending`,
-`POST /actions/{id}/approve`, `POST /actions/{id}/reject`, `GET /actions/{id}/audit`.
+The agent's endpoints are listed in the API table above.
+
+## Run locally (free, no keys)
+
+```bash
+ollama pull bge-m3
+ollama pull llama3.2
+ollama pull qwen2.5:7b              # only for the agent
+
+python -m venv .venv
+.venv\Scripts\activate            # macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
+
+python ingest.py                  # index everything in docs/
+python ask.py "your question"     # command line
+python -m uvicorn api:app --reload   # REST API on http://127.0.0.1:8000/docs
+```
+
+## Run against Azure OpenAI
+
+Set two environment variables and the app switches backend. The key is read straight
+from Azure into the shell, so it is never written to a file (PowerShell shown):
+
+```powershell
+$env:AZURE_OPENAI_ENDPOINT = az cognitiveservices account show -n <aoai-name> -g <rg> --query properties.endpoint -o tsv
+$env:AZURE_OPENAI_API_KEY  = az cognitiveservices account keys list -n <aoai-name> -g <rg> --query key1 -o tsv
+
+python ingest.py                  # rebuilds the index with Azure embeddings
+python ask.py "your question"
+```
+
+Optional variables: `AZURE_CHAT_DEPLOYMENT` (default `chat`), `AZURE_EMBED_DEPLOYMENT`
+(default `text-embedding-3-small`), `AZURE_REASONING_EFFORT` (default `low`).
+
+## Deploy to Azure Container Apps
+
+```powershell
+# One-time infrastructure
+az group create -n <rg> -l swedencentral
+az acr create -g <rg> -n <acr> --sku Basic
+az containerapp env create -n <env> -g <rg> -l swedencentral
+
+# Build and push the image
+docker build -t rag-demo .
+az acr login -n <acr>
+docker tag rag-demo <acr>.azurecr.io/rag-demo:v2
+docker push <acr>.azurecr.io/rag-demo:v2
+
+# Create the app (image pulled with a managed identity, no registry password)
+az containerapp create -n rag-demo -g <rg> --environment <env> `
+  --image <acr>.azurecr.io/rag-demo:v2 --registry-server <acr>.azurecr.io --registry-identity system `
+  --target-port 8000 --ingress external --min-replicas 0 --max-replicas 1 `
+  --secrets "aoai-key=$env:AZURE_OPENAI_API_KEY" `
+  --env-vars "AZURE_OPENAI_ENDPOINT=$env:AZURE_OPENAI_ENDPOINT" "AZURE_OPENAI_API_KEY=secretref:aoai-key"
+```
 
 ## Design choices
 
-- **Chunking** — 800 characters with 150 characters of overlap, cut at whitespace,
-  so sentences on a chunk boundary are not lost.
-- **Embeddings** — `bge-m3`, a multilingual model, so a Dutch question can match an English document.
-- **Vector store** — ChromaDB with cosine distance, persisted to disk.
-- **Grounding** — the system prompt tells the model to answer only from the retrieved
-  context, to say "I don't know" otherwise, and to cite sources by number.
-- **Robust indexing** — embeddings are sent in small batches; if a batch fails, chunks
-  are retried one by one and only the failing ones are skipped, with Ollama's own
-  error message shown.
+- **One code base, two backends.** Configuration comes from the environment
+  (twelve-factor style), so nothing changes between laptop and cloud.
+- **No secrets in code or in the image.** The API key is a Container Apps secret,
+  referenced by the environment variable; the registry is accessed with a managed identity.
+- **Deployment alias.** The app calls a deployment named `chat`, not a model name.
+  Swapping the model when one is retired needs no code change.
+- **Scale to zero.** `min-replicas 0` keeps idle cost near zero at the price of a cold start.
+- **Data residency.** Embeddings use a Data Zone (EU) deployment. The chat model uses a
+  Global deployment because that was the only quota available on the subscription; with
+  personal data this would be a Data Zone or regional deployment instead.
+- **Separate index per embedding model.** Vectors from different models are not comparable,
+  so each backend writes to its own ChromaDB collection.
+- **Grounding.** The system prompt restricts answers to the retrieved context and asks for
+  numbered citations; the model says "I don't know" when the context has no answer.
+- **Robust indexing.** Small batches, automatic wait-and-retry on HTTP 429, and a
+  chunk-by-chunk fallback so one bad chunk does not stop the run.
+- **Basic abuse protection.** Questions are limited to 500 characters and the model
+  deployment has a low requests-per-minute cap.
 
-## Troubleshooting
+## Documents
 
-| Problem | Fix |
-|---|---|
-| `Cannot reach Ollama` | Start the Ollama app |
-| `Model not found` | `ollama pull <model>` |
-| `llama-server binary not found` | Ollama install is incomplete (often antivirus quarantine) — check Windows Security protection history, or reinstall Ollama |
-| Chunks skipped with `NaN` | Switch `EMBED_MODEL` to `nomic-embed-text` in `config.py` and re-index |
-| Slow answers | Normal on CPU; try `CHAT_MODEL = "llama3.2:1b"` |
+`docs/` and `db/` are not in this repository. The index is baked into the container image
+at build time, so the image contains the text of the indexed documents. Only index
+documents you are allowed to publish.
 
 ## Roadmap
 
-- [ ] Support `.docx` and scanned PDFs (OCR)
-- [ ] REST API with FastAPI
-- [ ] Docker image
-- [ ] Cloud deployment on Azure (Container Apps, Azure AI Search, Azure OpenAI)
+- [x] REST API with FastAPI
+- [x] Docker image
+- [x] Azure Container Apps + Azure OpenAI
+- [x] Agent with tool calling, human approval, audit log and tests
+- [ ] Agent state in PostgreSQL (SQLite inside the container is lost on restart)
+- [ ] Azure AI Search instead of an index baked into the image
+- [ ] CI/CD with GitHub Actions
+- [ ] Managed identity for Azure OpenAI (no API key at all)
+- [ ] `.docx` and scanned PDF (OCR) support
 
 ## Author
 
 Hakan Şahin — [hakansahin.dev](https://hakansahin.dev)
-
-Documents: Microsoft Learn (https://learn.microsoft.com), licensed under CC BY 4.0
