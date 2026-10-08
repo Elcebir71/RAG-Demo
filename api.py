@@ -110,7 +110,7 @@ def require_admin(x_admin_key: str = Header(default="")):
         raise HTTPException(status_code=401, detail="Invalid admin key.")
 
 
-@app.post("/agent", response_model=AgentReply)
+@app.post("/agent", response_model=AgentReply, dependencies=[Depends(require_admin)])
 def run_agent(body: AgentRequest):
     if not body.message.strip():
         raise HTTPException(status_code=400, detail="Message is empty.")
