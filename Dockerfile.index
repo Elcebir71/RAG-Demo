@@ -1,0 +1,4 @@
+# Holds only the prebuilt vector index, not the source documents.
+# Built and pushed by hand whenever the documents change; the app image copies db/ from it.
+FROM scratch
+COPY db/ /db/
