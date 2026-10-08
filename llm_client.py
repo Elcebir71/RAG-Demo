@@ -175,4 +175,14 @@ def chat_with_tools(messages, tools):
             name=function.get("name", ""),
             arguments=_parse_arguments(function.get("arguments")),
         ))
-    return ModelTurn(content=message.get("content") or "", tool_calls=calls, raw_message=message)
+        # Keep only the fields both backends accept when this message is sent back.
+    reply = {"role": "assistant", "content": message.get("content") or ""}
+    if message.get("tool_calls"):
+        reply["tool_calls"] = message["tool_calls"]
+    return ModelTurn(content=reply["content"], tool_calls=calls, raw_message=reply)
+
+def tool_result_message(call, content):
+    """The message that returns a tool result to the model, in the format each backend expects."""
+    if USE_AZURE:
+        return {"role": "tool", "tool_call_id": call.id, "content": content}
+    return {"role": "tool", "tool_name": call.name, "content": content}
