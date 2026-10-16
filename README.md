@@ -247,7 +247,13 @@ both need the index and the model backend, so they are run by hand, not in CI.
 every answer is saved, so check the misses by eye.
 
 Each run is saved to `evals/results/` with its settings, so you can change `TOP_K`,
-the chunk size or the model, run again and compare.
+the chunk size or the model, run again and compare. The local chat model is read from
+`CHAT_MODEL` (default `llama3.2`), so comparing two models needs no code change:
+
+```powershell
+$env:CHAT_MODEL = "qwen2.5:7b"     # macOS/Linux: export CHAT_MODEL=qwen2.5:7b
+python -m evals.eval_answers
+```
 
 ## Design choices
 
