@@ -75,6 +75,11 @@ Each source names the exact chunk it came from (`chunk_id`) and starts with its 
 so a reader can check the answer. `cited` says whether the answer refers to that source as `[n]`;
 `invalid_citations` lists numbers the answer cites that were never retrieved (like `[6]` with 4 sources).
 
+**Request trace (off by default).** Set `PROVENANCE_LOG=provenance.jsonl` and every `/ask` adds one
+JSON line: time, question, backend and model, when the index was built (`indexed_at`), the chunk ids
+with their similarity, the answer and its citations. The API is public, so storing questions is
+a deliberate choice, not a default. A failed write is logged and never breaks an answer.
+
 ## Agent with guarded actions
 
 The assistant can also act: search the documents, save notes and send email.
@@ -111,7 +116,8 @@ request ─▶ model proposes tool calls
 - Approving twice runs once: every status change is a conditional update.
 - Rules are checked again at approval time, not only at proposal time.
 - Failures are recorded, never lost; the loop stops after `MAX_STEPS` rounds.
-- Every status change is written to an audit log.
+- Every status change is written to an audit log. A document search records which chunks
+  it found (`Found: file.pdf-p13-c0 (0.65), ...`), and the agent cites them as `[file.pdf-p13-c0]`.
 
 Email runs in **demo mode**: an approved email goes to an `outbox` table and is not
 sent. A public demo that sends real email could be abused as a spam relay.
@@ -318,6 +324,7 @@ documents you are allowed to publish.
 - [ ] Managed identity for Azure OpenAI (no API key at all)
 - [ ] `.docx` and scanned PDF (OCR) support
 - [x] Source tracking: chunk ids and checked `[n]` citations in every answer
+- [x] Request trace for `/ask` and chunk ids in the agent's audit log
 - [x] Retrieval quality check (`evals/`)
 - [x] Answer quality check: citation accuracy and "I don't know" on off-topic questions
 

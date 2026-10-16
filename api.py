@@ -11,6 +11,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 import agent
+import provenance
 import store
 from ask import SYSTEM_PROMPT, build_prompt, citations, retrieve, snippet
 from config import ADMIN_API_KEY, BACKEND, COLLECTION, DB_DIR
@@ -76,6 +77,7 @@ def ask(body: Question):
         raise HTTPException(status_code=503, detail="The language model backend is not available.")
 
     cited, invalid = citations(text, len(hits))
+    provenance.record(collection, body.question, hits, text, cited, invalid)
     sources = [
         Source(source=meta["source"], page=meta["page"], similarity=round(1 - distance, 2),
                chunk_id=meta["chunk_id"], snippet=snippet(chunk), cited=n in cited)
