@@ -12,7 +12,7 @@ The same code runs in two modes, selected by environment variables:
 
 | | Local | Cloud |
 |---|---|---|
-| Chat model | Ollama `llama3.2` | Azure OpenAI `gpt-5-mini` |
+| Chat model | Ollama `qwen2.5:7b` | Azure OpenAI `gpt-5-mini` |
 | Embeddings | Ollama `bge-m3` | Azure OpenAI `text-embedding-3-small` |
 | Hosting | your machine | Azure Container Apps |
 | Cost / keys | free, no keys | pay per token, key stored as a secret |
@@ -153,8 +153,7 @@ The agent's endpoints are listed in the API table above.
 
 ```bash
 ollama pull bge-m3
-ollama pull llama3.2
-ollama pull qwen2.5:7b              # only for the agent
+ollama pull qwen2.5:7b              # chat model and agent
 
 python -m venv .venv
 .venv\Scripts\activate            # macOS/Linux: source .venv/bin/activate
@@ -248,12 +247,27 @@ every answer is saved, so check the misses by eye.
 
 Each run is saved to `evals/results/` with its settings, so you can change `TOP_K`,
 the chunk size or the model, run again and compare. The local chat model is read from
-`CHAT_MODEL` (default `llama3.2`), so comparing two models needs no code change:
+`CHAT_MODEL` (default `qwen2.5:7b`), so comparing two models needs no code change:
 
 ```powershell
-$env:CHAT_MODEL = "qwen2.5:7b"     # macOS/Linux: export CHAT_MODEL=qwen2.5:7b
+$env:CHAT_MODEL = "llama3.2"       # macOS/Linux: export CHAT_MODEL=llama3.2
 python -m evals.eval_answers
 ```
+
+That comparison is how the default was chosen (Ollama, `bge-m3`, top 4, 22 questions):
+
+| | llama3.2 (3B) | qwen2.5:7b |
+|---|---|---|
+| Citation coverage | 56% | 100% |
+| Citation validity | 94% | 100% |
+| Citation accuracy | 88% | 98% |
+| Wrong abstention | 0% | 0% |
+| Correct abstention | 4/4 | 4/4 |
+
+What the numbers miss, seen by reading the answers: llama3.2 often wrote broken Turkish,
+and qwen2.5:7b once switched to Chinese in a Dutch answer and once mixed up "reserved
+instance, up to 72%" with "spot capacity, up to 90%" while citing the right page.
+Retrieval for the same questions: hit rate @1 94%, @4 100%.
 
 ## Design choices
 

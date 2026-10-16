@@ -37,7 +37,7 @@ ABSTAIN_PHRASES = [
     "niet vermeld", "staat niet", "kan ik niet beantwoorden", "kan deze vraag niet",
     # Turkish
     "bilmiyorum", "bilgi yok", "bilgi bulunm", "yer almıyor", "yer almamaktadır",
-    "bahsedilmiyor", "bahsedilmemektedir", "cevap veremiyorum", "yanıt veremiyorum",
+    "bulunamadı", "bahsedilmiyor", "bahsedilmemektedir", "cevap veremiyorum", "yanıt veremiyorum",
 ]
 
 
