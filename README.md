@@ -258,8 +258,16 @@ both need the index and the model backend, so they are run by hand, not in CI.
 (`ABSTAIN_PHRASES` in `evals/eval_answers.py`), so an unusual wording can be missed;
 every answer is saved, so check the misses by eye.
 
+**Tuning** (`python -m evals.tune_retrieval`, embedding model only): builds a throwaway
+in-memory index for each chunk size (400, 600, 800 and 1200 characters by default; `db/` is
+not touched), asks every question once, and reports hit rate and MRR for top 2, 3, 4, 6 and 8.
+For each chunk size it also checks whether a minimum similarity could separate answerable from
+unanswerable questions: it prints the lowest top similarity of an answerable question and the
+highest of an unanswerable one, and proposes a cutoff only when they do not overlap.
+
 Each run is saved to `evals/results/` with its settings, so you can change `TOP_K`,
-the chunk size or the model, run again and compare. The local chat model is read from
+the chunk size or the model, run again and compare. `TOP_K`, `CHUNK_SIZE` and
+`CHUNK_OVERLAP` are read from the environment too; a new chunk size needs `python ingest.py` again. The local chat model is read from
 `CHAT_MODEL` (default `qwen2.5:7b`), so comparing two models needs no code change:
 
 ```powershell
