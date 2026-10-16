@@ -223,7 +223,8 @@ pushes it to the registry, updates the Container App and checks `/health`
 ## Quality checks
 
 `evals/questions.json` lists questions in English, Dutch and Turkish, each with the
-pages that answer it, plus a few questions the documents cannot answer. Two scripts use it;
+pages that answer it, a reference answer and its key facts, plus a few questions the
+documents cannot answer. Two scripts use it;
 both need the index and the model backend, so they are run by hand, not in CI.
 
 **Retrieval** (`python -m evals.eval_retrieval`, embedding model only):
@@ -233,8 +234,14 @@ both need the index and the model backend, so they are run by hand, not in CI.
 - **Mean top similarity** for answerable and unanswerable questions: if the two are far apart,
   a minimum-similarity cutoff could stop the model from answering off-topic questions
 
-**Answers** (`python -m evals.eval_answers`, embedding and chat model):
+**Answers** (`python -m evals.eval_answers [--judge]`, embedding and chat model):
 
+- **Fact recall / complete answers**: share of the key facts (a number, a product name, each
+  with alternatives in other languages) found in the answer, and answers that contain all of them.
+  This catches a wrong number or a missing item, not a wrong explanation
+- **Judge** (with `--judge`): the chat model compares each answer with the reference answer
+  and says correct, partial or wrong. It grades answers from a model like itself, so treat it
+  as a second opinion
 - **Citation coverage**: answers that cite at least one source as `[n]`
 - **Citation validity**: answers whose `[n]` all point at a retrieved source
 - **Citation accuracy**: share of cited sources that come from an expected page
@@ -263,10 +270,13 @@ That comparison is how the default was chosen (Ollama, `bge-m3`, top 4, 22 quest
 | Citation accuracy | 88% | 98% |
 | Wrong abstention | 0% | 0% |
 | Correct abstention | 4/4 | 4/4 |
+| Fact recall | 78% | 86% |
+| Complete answers | 12/18 | 15/18 |
 
 What the numbers miss, seen by reading the answers: llama3.2 often wrote broken Turkish,
-and qwen2.5:7b once switched to Chinese in a Dutch answer and once mixed up "reserved
-instance, up to 72%" with "spot capacity, up to 90%" while citing the right page.
+and qwen2.5:7b once switched to Chinese in a Dutch answer. qwen2.5:7b also mixed up
+"reserved instance, up to 72%" with "spot capacity, up to 90%" while citing the right page:
+citation accuracy missed that, the key-fact check catches it.
 Retrieval for the same questions: hit rate @1 94%, @4 100%.
 
 ## Design choices

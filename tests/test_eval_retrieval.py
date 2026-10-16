@@ -51,5 +51,10 @@ def test_summary():
 def test_question_file_is_well_formed():
     cases = json.loads((Path(__file__).parent.parent / "evals" / "questions.json").read_text(encoding="utf-8"))
     for c in cases:
-        assert set(c) == {"question", "source", "pages"}
-        assert (c["source"] is None) == (c["pages"] == [])
+        if c["source"] is None:  # no answer in the documents
+            assert set(c) == {"question", "source", "pages"} and c["pages"] == []
+        else:
+            assert set(c) == {"question", "source", "pages", "answer", "facts"}
+            assert c["pages"] and c["answer"] and c["facts"]
+            for fact in c["facts"]:
+                assert isinstance(fact, str) or (fact and all(isinstance(a, str) for a in fact))

@@ -12,9 +12,9 @@ from config import BACKEND, CHUNK_OVERLAP, CHUNK_SIZE, COLLECTION, DB_DIR, TOP_K
 HERE = Path(__file__).parent
 
 
-def load_cases():
-    """The questions file named on the command line, or evals/questions.json."""
-    path = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "questions.json"
+def load_cases(path=None):
+    """The given questions file, or evals/questions.json."""
+    path = Path(path) if path else HERE / "questions.json"
     return path, json.loads(path.read_text(encoding="utf-8"))
 
 
