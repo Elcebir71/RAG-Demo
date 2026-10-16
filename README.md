@@ -42,6 +42,7 @@ Answer with source citations  [1] file.pdf, page 13
 | `tools.py` | Agent tool registry: schemas, risk levels, validation and business rules |
 | `store.py` | Agent state in SQLite: actions, audit log, notes, outbox |
 | `agent.py` | Agent loop, approve and reject |
+| `evals/` | Retrieval quality check against a fixed set of questions |
 | `tests/` | Tests for the agent's guarantees, with a scripted fake model |
 | `Dockerfile` | Container image with the app and the prebuilt index |
 
@@ -220,6 +221,24 @@ pushes it to the registry, updates the Container App and checks `/health`
 - **Settings stay in Azure.** `EMAIL_ALLOWLIST` and `ADMIN_API_KEY` (a Container Apps
   secret) are set once on the app. A deploy only changes the image.
 
+## Retrieval quality check
+
+`evals/questions.json` lists questions in English, Dutch and Turkish, each with the
+pages that answer it, plus a few questions the documents cannot answer.
+`evals/eval_retrieval.py` asks the index for each one (no chat model is called) and reports:
+
+- **Hit rate @1 / @k**: how often a chunk from an expected page comes back first / in the top k
+- **Mean reciprocal rank**: 1 for a hit at rank 1, 1/2 at rank 2, ..., 0 for a miss
+- **Mean top similarity** for answerable and unanswerable questions: if the two are far apart,
+  a minimum-similarity cutoff could stop the model from answering off-topic questions
+
+```bash
+python -m evals.eval_retrieval      # needs the index and the embedding model
+```
+
+Each run is also saved to `evals/results/` with its settings, so you can change `TOP_K`
+or the chunk size, re-index, run again and compare.
+
 ## Design choices
 
 - **One code base, two backends.** Configuration comes from the environment
@@ -258,6 +277,9 @@ documents you are allowed to publish.
 - [x] CI/CD with GitHub Actions: tests on every pull request, deploy on every merge
 - [ ] Managed identity for Azure OpenAI (no API key at all)
 - [ ] `.docx` and scanned PDF (OCR) support
+- [x] Source tracking: chunk ids and checked `[n]` citations in every answer
+- [x] Retrieval quality check (`evals/`)
+- [ ] Answer quality check: citation accuracy and "I don't know" on off-topic questions
 
 ## Author
 
