@@ -17,7 +17,7 @@ BACKEND = "azure" if USE_AZURE else "ollama"
 # --- Local backend (Ollama) --------------------------------------------------
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 EMBED_MODEL = "bge-m3"     # multilingual embedding model (Dutch, Turkish, English, ...)
-CHAT_MODEL = "llama3.2"    # small local LLM (about 2 GB)
+CHAT_MODEL = os.getenv("CHAT_MODEL", "llama3.2")  # small local LLM (about 2 GB)
 
 # --- Documents and index -----------------------------------------------------
 DOCS_DIR = "docs"          # put your PDF / TXT / MD files here
