@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 import agent
 import store
-from ask import SYSTEM_PROMPT, build_prompt, retrieve
+from ask import SYSTEM_PROMPT, build_prompt, citations, retrieve, snippet
 from config import ADMIN_API_KEY, BACKEND, COLLECTION, DB_DIR
 from llm_client import LLMError, chat
 
@@ -29,11 +29,16 @@ class Source(BaseModel):
     source: str
     page: int
     similarity: float
+    chunk_id: str  # the exact chunk, like "file.pdf-p13-c2"
+    snippet: str   # the start of the chunk, so a reader can check the answer
+    cited: bool    # True if the answer refers to this source as [n]
 
 
 class Answer(BaseModel):
     answer: str
     sources: list[Source]
+    # Source numbers the answer cites that were never retrieved, like [6] with 4 sources.
+    invalid_citations: list[int]
 
 
 def get_collection():
@@ -70,11 +75,13 @@ def ask(body: Question):
         log.error("Model backend error: %s", error)
         raise HTTPException(status_code=503, detail="The language model backend is not available.")
 
+    cited, invalid = citations(text, len(hits))
     sources = [
-        Source(source=meta["source"], page=meta["page"], similarity=round(1 - distance, 2))
-        for _, meta, distance in hits
+        Source(source=meta["source"], page=meta["page"], similarity=round(1 - distance, 2),
+               chunk_id=meta["chunk_id"], snippet=snippet(chunk), cited=n in cited)
+        for n, (chunk, meta, distance) in enumerate(hits, start=1)
     ]
-    return Answer(answer=text, sources=sources)
+    return Answer(answer=text, sources=sources, invalid_citations=invalid)
 # --- Agent ----------------------------------------------------------------------
 
 Status = Literal["pending", "rejected", "running", "done", "failed"]

@@ -61,11 +61,18 @@ Answer with source citations  [1] file.pdf, page 13
 {
   "answer": "IaaS requires the most user management: you manage the operating systems, data and applications ... [1][3]",
   "sources": [
-    {"source": "file.pdf", "page": 13, "similarity": 0.65},
-    {"source": "file.pdf", "page": 15, "similarity": 0.51}
-  ]
+    {"source": "file.pdf", "page": 13, "similarity": 0.65, "chunk_id": "file.pdf-p13-c0",
+     "snippet": "Infrastructure as a service (IaaS) is the most flexible ...", "cited": true},
+    {"source": "file.pdf", "page": 15, "similarity": 0.51, "chunk_id": "file.pdf-p15-c1",
+     "snippet": "Platform as a service (PaaS) provides ...", "cited": false}
+  ],
+  "invalid_citations": []
 }
 ```
+
+Each source names the exact chunk it came from (`chunk_id`) and starts with its text (`snippet`),
+so a reader can check the answer. `cited` says whether the answer refers to that source as `[n]`;
+`invalid_citations` lists numbers the answer cites that were never retrieved (like `[6]` with 4 sources).
 
 ## Agent with guarded actions
 
