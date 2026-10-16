@@ -17,6 +17,7 @@ UNANSWERABLE = {"question": "q", "source": None, "pages": []}
     "Dat weet ik niet.",
     "Bu bilgi bağlamda yer almıyor.",
     "Bilmiyorum.",
+    "Bu bilgi veri kaynaklarında bulunamadı.",
 ])
 def test_abstains(text):
     assert abstains(text)
