@@ -27,9 +27,11 @@ DB_DIR = "db"              # the vector database is stored here
 # sizes), so each backend gets its own collection inside the same database.
 COLLECTION = "documents-azure" if USE_AZURE else "documents"
 
-CHUNK_SIZE = 800           # characters per chunk
-CHUNK_OVERLAP = 150        # characters shared between neighbouring chunks
-TOP_K = 4                  # number of chunks retrieved per question
+# Read from the environment so evals/ can compare settings without code changes.
+# A new chunk size or overlap only takes effect after running ingest.py again.
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "800"))      # characters per chunk
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "150"))  # characters shared between neighbouring chunks
+TOP_K = int(os.getenv("TOP_K", "4"))                  # number of chunks retrieved per question
 # Request trace for /ask (question, chunks, answer) as JSON lines. Empty = off, the default.
 PROVENANCE_LOG = os.getenv("PROVENANCE_LOG", "")
 # --- Agent -------------------------------------------------------------------
