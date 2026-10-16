@@ -293,6 +293,25 @@ and qwen2.5:7b once switched to Chinese in a Dutch answer. qwen2.5:7b also mixed
 citation accuracy missed that, the key-fact check catches it.
 Retrieval for the same questions: hit rate @1 94%, @4 100%.
 
+The tuning sweep (Ollama, `bge-m3`, 18 answerable + 4 unanswerable questions, overlap 150)
+kept the defaults, chunk 800 and top 4:
+
+| Chunk size | Chunks | Hit rate @1 | Hit rate @2 to @8 | Lowest answerable / highest unanswerable similarity |
+|---|---|---|---|---|
+| 400 | 135 | 94% | 100% | 0.505 / 0.476 |
+| 600 | 78 | 94% | 100% | 0.455 / 0.470 (overlap) |
+| 800 | 60 | 100% | 100% | 0.484 / 0.461 |
+| 1200 | 39 | 100% | 100% | 0.481 / 0.454 |
+
+- **Chunk size:** 800 and 1200 both find the right page first for every question; 800 sends
+  the model less text per chunk, so it stays.
+- **Top k:** the right page is always in the top 2, so a larger k adds nothing for retrieval.
+  4 stays because some answers span two pages and the model gets more context.
+- **No similarity cutoff:** the gap between answerable and unanswerable questions is only
+  0.02 to 0.03, it disappears at chunk size 600, and it rests on 4 off-topic questions.
+  A cutoff that thin would turn away real questions phrased a little differently; the model
+  already says "I don't know" to all 4 off-topic questions.
+
 ## Design choices
 
 - **One code base, two backends.** Configuration comes from the environment
