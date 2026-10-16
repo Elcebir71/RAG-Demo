@@ -42,7 +42,7 @@ Answer with source citations  [1] file.pdf, page 13
 | `tools.py` | Agent tool registry: schemas, risk levels, validation and business rules |
 | `store.py` | Agent state in SQLite: actions, audit log, notes, outbox |
 | `agent.py` | Agent loop, approve and reject |
-| `evals/` | Retrieval quality check against a fixed set of questions |
+| `evals/` | Retrieval and answer quality checks against a fixed set of questions |
 | `tests/` | Tests for the agent's guarantees, with a scripted fake model |
 | `Dockerfile` | Container image with the app and the prebuilt index |
 
@@ -221,23 +221,33 @@ pushes it to the registry, updates the Container App and checks `/health`
 - **Settings stay in Azure.** `EMAIL_ALLOWLIST` and `ADMIN_API_KEY` (a Container Apps
   secret) are set once on the app. A deploy only changes the image.
 
-## Retrieval quality check
+## Quality checks
 
 `evals/questions.json` lists questions in English, Dutch and Turkish, each with the
-pages that answer it, plus a few questions the documents cannot answer.
-`evals/eval_retrieval.py` asks the index for each one (no chat model is called) and reports:
+pages that answer it, plus a few questions the documents cannot answer. Two scripts use it;
+both need the index and the model backend, so they are run by hand, not in CI.
+
+**Retrieval** (`python -m evals.eval_retrieval`, embedding model only):
 
 - **Hit rate @1 / @k**: how often a chunk from an expected page comes back first / in the top k
 - **Mean reciprocal rank**: 1 for a hit at rank 1, 1/2 at rank 2, ..., 0 for a miss
 - **Mean top similarity** for answerable and unanswerable questions: if the two are far apart,
   a minimum-similarity cutoff could stop the model from answering off-topic questions
 
-```bash
-python -m evals.eval_retrieval      # needs the index and the embedding model
-```
+**Answers** (`python -m evals.eval_answers`, embedding and chat model):
 
-Each run is also saved to `evals/results/` with its settings, so you can change `TOP_K`
-or the chunk size, re-index, run again and compare.
+- **Citation coverage**: answers that cite at least one source as `[n]`
+- **Citation validity**: answers whose `[n]` all point at a retrieved source
+- **Citation accuracy**: share of cited sources that come from an expected page
+- **Wrong abstention**: "I don't know" although the answer is in the documents
+- **Correct abstention**: "I don't know" for questions the documents cannot answer
+
+"I don't know" is recognised by a list of phrases in English, Dutch and Turkish
+(`ABSTAIN_PHRASES` in `evals/eval_answers.py`), so an unusual wording can be missed;
+every answer is saved, so check the misses by eye.
+
+Each run is saved to `evals/results/` with its settings, so you can change `TOP_K`,
+the chunk size or the model, run again and compare.
 
 ## Design choices
 
@@ -279,7 +289,7 @@ documents you are allowed to publish.
 - [ ] `.docx` and scanned PDF (OCR) support
 - [x] Source tracking: chunk ids and checked `[n]` citations in every answer
 - [x] Retrieval quality check (`evals/`)
-- [ ] Answer quality check: citation accuracy and "I don't know" on off-topic questions
+- [x] Answer quality check: citation accuracy and "I don't know" on off-topic questions
 
 ## Author
 

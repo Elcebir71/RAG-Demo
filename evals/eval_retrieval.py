@@ -11,18 +11,12 @@ Usage (from the repository root):
 Results are printed and saved to evals/results/ so runs can be compared.
 """
 
-import json
 import sys
-from datetime import datetime
-from pathlib import Path
-
-import chromadb
 
 from ask import retrieve
-from config import BACKEND, CHUNK_OVERLAP, CHUNK_SIZE, COLLECTION, DB_DIR, TOP_K
+from config import BACKEND, CHUNK_OVERLAP, CHUNK_SIZE, TOP_K
+from evals.common import load_cases, open_collection, save_run, settings
 from llm_client import LLMError
-
-HERE = Path(__file__).parent
 
 
 def first_hit_rank(hits, case):
@@ -70,14 +64,8 @@ def summarize(rows):
 
 
 def main():
-    path = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "questions.json"
-    cases = json.loads(path.read_text(encoding="utf-8"))
-
-    client = chromadb.PersistentClient(path=DB_DIR)
-    try:
-        collection = client.get_collection(COLLECTION)
-    except Exception:
-        sys.exit(f"No index found for the '{BACKEND}' backend. Run: python ingest.py")
+    path, cases = load_cases()
+    collection = open_collection()
 
     rows = []
     for case in cases:
@@ -100,14 +88,7 @@ def main():
     print(f"Mean top similarity: {summary['mean_top_similarity_answerable']} (answerable), "
           f"{summary['mean_top_similarity_unanswerable']} (no answer in the documents)")
 
-    results_dir = HERE / "results"
-    results_dir.mkdir(exist_ok=True)
-    out = results_dir / f"retrieval-{BACKEND}-{datetime.now():%Y%m%d-%H%M%S}.json"
-    settings = {"backend": BACKEND, "collection": COLLECTION, "top_k": TOP_K,
-                "chunk_size": CHUNK_SIZE, "chunk_overlap": CHUNK_OVERLAP, "questions": str(path)}
-    out.write_text(json.dumps({"settings": settings, "summary": summary, "rows": rows},
-                              ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\nSaved to {out}")
+    print(f"\nSaved to {save_run('retrieval', settings(path), summary, rows)}")
 
 
 if __name__ == "__main__":
