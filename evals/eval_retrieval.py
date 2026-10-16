@@ -64,7 +64,7 @@ def summarize(rows):
 
 
 def main():
-    path, cases = load_cases()
+    path, cases = load_cases(sys.argv[1] if len(sys.argv) > 1 else None)
     collection = open_collection()
 
     rows = []
