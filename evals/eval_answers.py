@@ -57,7 +57,9 @@ ABSTAIN_PHRASES = [
 JUDGE_PROMPT = (
     "You grade answers of a question-answering system against a reference answer. "
     "The answer may be in another language than the reference; judge the meaning only. "
+    "Check each fact against the answer text itself; do not assume a fact is there. "
     "correct: it states the essential facts of the reference and nothing that contradicts it. "
+    "Extra information that does not contradict the reference is fine. "
     "partial: it is right but misses part of the reference. "
     "wrong: it contradicts the reference, or does not answer the question. "
     'Reply with JSON only: {"verdict": "correct" | "partial" | "wrong", "reason": "<one sentence>"}'
