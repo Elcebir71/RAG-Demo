@@ -142,3 +142,23 @@ def test_every_status_change_is_in_the_audit_log(monkeypatch):
     agent.approve(action["id"])
     events = [entry["event"] for entry in store.audit_log(action["id"])]
     assert events == ["proposed -> pending", "pending -> running", "running -> done"]
+
+def test_search_labels_passages_and_logs_the_chunk_ids(monkeypatch):
+    class FakeClient:
+        def __init__(self, path):
+            pass
+
+        def get_collection(self, name):
+            return None
+
+    hits = [("IaaS text", {"source": "az.pdf", "page": 13, "chunk_id": "az.pdf-p13-c0"}, 0.35)]
+    monkeypatch.setattr(agent.chromadb, "PersistentClient", FakeClient)
+    monkeypatch.setattr(agent, "retrieve", lambda collection, query: hits)
+    monkeypatch.setitem(agent.EXECUTORS, "search_documents", agent._search)
+    model(monkeypatch, call("search_documents", {"query": "IaaS"}), answer("IaaS [az.pdf-p13-c0]."))
+
+    [action] = agent.run_agent("What is IaaS?")["actions"]
+    assert action["detail"] == "Found: az.pdf-p13-c0 (0.65)"
+    passages, _ = agent._search(tools.SearchArgs(query="IaaS"))
+    assert passages.startswith("[az.pdf-p13-c0] (az.pdf, page 13)\nIaaS text")
+    assert any("az.pdf-p13-c0" in (entry["detail"] or "") for entry in store.audit_log(action["id"]))

@@ -1,6 +1,7 @@
 """Step 1 - Indexing: read documents, split into chunks, embed, store in ChromaDB."""
 
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import chromadb
@@ -82,7 +83,11 @@ def main():
         client.delete_collection(COLLECTION)  # rebuild from scratch each run
     except Exception:
         pass
-    collection = client.create_collection(COLLECTION, metadata={"hnsw:space": "cosine"})
+    # indexed_at lets the provenance log tie an answer to the index it came from.
+    collection = client.create_collection(COLLECTION, metadata={
+        "hnsw:space": "cosine",
+        "indexed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    })
 
     meta_by_id = dict(zip(ids, metadatas))
     stored = 0

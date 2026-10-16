@@ -30,6 +30,8 @@ COLLECTION = "documents-azure" if USE_AZURE else "documents"
 CHUNK_SIZE = 800           # characters per chunk
 CHUNK_OVERLAP = 150        # characters shared between neighbouring chunks
 TOP_K = 4                  # number of chunks retrieved per question
+# Request trace for /ask (question, chunks, answer) as JSON lines. Empty = off, the default.
+PROVENANCE_LOG = os.getenv("PROVENANCE_LOG", "")
 # --- Agent -------------------------------------------------------------------
 AGENT_MODEL = os.getenv("AGENT_MODEL", "qwen2.5:7b")  # chosen by a small tool-calling test, see README
 
