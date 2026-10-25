@@ -8,6 +8,7 @@ import chromadb
 from pypdf import PdfReader
 
 from config import BACKEND, CHUNK_OVERLAP, CHUNK_SIZE, COLLECTION, DB_DIR, DOCS_DIR
+from levels import LevelError, load_manifest
 from llm_client import LLMError, LLMUnavailable, embed
 
 BATCH_SIZE = 8  # small batches are easier on RAM / GPU memory and on rate limits
@@ -64,12 +65,20 @@ def chunk_text(text, size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
 
 
 def main():
+    levels = load_manifest(DOCS_DIR)  # {} when there is no manifest.json: no level filtering
     ids, documents, metadatas = [], [], []
+    seen = set()
     for source, page, text in read_documents(DOCS_DIR):
+        seen.add(source)
         for i, chunk in enumerate(chunk_text(text)):
             ids.append(f"{source}-p{page}-c{i}")
             documents.append(chunk)
-            metadatas.append({"source": source, "page": page})
+            metadatas.append({"source": source, "page": page, **levels.get(source, {})})
+    if levels:
+        for name in sorted(seen - levels.keys()):
+            print(f"  No level in manifest.json for {name}: it is left out of level searches.")
+        for name in sorted(levels.keys() - seen):
+            print(f"  manifest.json names {name}, but there is no such document.")
 
     if not documents:
         print(f"No documents found in '{DOCS_DIR}/'. Add some PDF, TXT or MD files first.")
@@ -113,3 +122,5 @@ if __name__ == "__main__":
         main()
     except LLMError as error:
         sys.exit(f"Model backend error: {error}")
+    except LevelError as error:
+        sys.exit(f"Manifest error: {error}")
