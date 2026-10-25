@@ -62,8 +62,11 @@ def chunk_metadata(entry):
         meta[f"niveau_{niveau}"] = True
     streams = [stroom.lower() for stroom in _as_list(entry.get("stroom") or [])]
     for stroom in streams:
-        if not any(stroom in STREAMS[niveau] for niveau in niveaus):
-            raise LevelError(f"No stroom '{stroom}' in {'/'.join(niveaus)}.")
+        # Every listed school type must have the stream: flags are not paired per school type,
+        # so havo+vwo with wiskunde C would otherwise reach havo, which has no C.
+        missing = [niveau for niveau in niveaus if stroom not in STREAMS[niveau]]
+        if missing:
+            raise LevelError(f"{'/'.join(missing)} has no stroom '{stroom}'; use a separate file.")
         meta[f"stroom_{stroom}"] = True
     if not streams:
         meta["stroom_all"] = True

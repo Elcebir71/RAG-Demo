@@ -46,6 +46,7 @@ def test_chunk_metadata_is_flat():
     {"niveau": "vmbo", "stroom": "B"},                # vmbo has learning paths, not A/B
     {"niveau": "po", "stroom": "kb"},
     {"niveau": ["po", "vmbo"], "leerjaar": 1},        # basisschool and VO need separate files
+    {"niveau": ["havo", "vwo"], "stroom": "C"},       # only vwo has C; would leak to havo
 ])
 def test_chunk_metadata_rejects_impossible_levels(entry):
     with pytest.raises(levels.LevelError):
