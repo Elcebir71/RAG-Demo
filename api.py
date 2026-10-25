@@ -11,6 +11,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 import agent
+import levels
 import provenance
 import store
 from ask import SYSTEM_PROMPT, build_prompt, citations, retrieve, snippet
@@ -20,10 +21,16 @@ from llm_client import LLMError, chat
 log = logging.getLogger("rag")
 app = FastAPI(title="RAG Document Assistant")
 
+NO_MATERIAL = "No material was found for this level."
+
 
 class Question(BaseModel):
     # The length limit keeps a public endpoint from being used to send huge prompts.
     question: str = Field(min_length=1, max_length=500)
+    # Optional level: search only the material for this school type, year (and below) and stream.
+    niveau: Literal["po", "vmbo", "havo", "vwo"] | None = None
+    leerjaar: int | None = Field(default=None, description="groep for po, leerjaar otherwise")
+    stroom: str | None = Field(default=None, max_length=2, description="bb/kb/gl/tl, or wiskunde a/b/c/d")
 
 
 class Source(BaseModel):
@@ -67,9 +74,18 @@ def ask(body: Question):
     if not body.question.strip():
         raise HTTPException(status_code=400, detail="Question is empty.")
 
+    if body.niveau is None and (body.leerjaar is not None or body.stroom):
+        raise HTTPException(status_code=422, detail="leerjaar and stroom need a niveau.")
+    try:
+        level = levels.where(body.niveau, body.leerjaar, body.stroom) if body.niveau else None
+    except levels.LevelError as error:
+        raise HTTPException(status_code=422, detail=str(error))
+
     collection = get_collection()
     try:
-        hits = retrieve(collection, body.question)
+        hits = retrieve(collection, body.question, where=level)
+        if not hits:  # nothing for this level: say so instead of letting the model guess
+            return Answer(answer=NO_MATERIAL, sources=[], invalid_citations=[])
         text = chat(SYSTEM_PROMPT, build_prompt(body.question, hits))
     except LLMError as error:
         # Full detail goes to the server log; the caller only gets a generic message.

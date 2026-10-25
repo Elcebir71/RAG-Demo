@@ -20,12 +20,14 @@ EMBED_MODEL = "bge-m3"     # multilingual embedding model (Dutch, Turkish, Engli
 CHAT_MODEL = os.getenv("CHAT_MODEL", "qwen2.5:7b")  # multilingual local LLM (about 5 GB), chosen by evals/
 
 # --- Documents and index -----------------------------------------------------
-DOCS_DIR = "docs"          # put your PDF / TXT / MD files here
+DOCS_DIR = os.getenv("DOCS_DIR", "docs")  # put your PDF / TXT / MD files here
 DB_DIR = "db"              # the vector database is stored here
 
 # Vectors from different embedding models are not comparable (and have different
 # sizes), so each backend gets its own collection inside the same database.
-COLLECTION = "documents-azure" if USE_AZURE else "documents"
+# COLLECTION keeps a second document set apart, like the maths material:
+# DOCS_DIR=docs/wiskunde COLLECTION=wiskunde python ingest.py
+COLLECTION = os.getenv("COLLECTION", "documents-azure" if USE_AZURE else "documents")
 
 # Read from the environment so evals/ can compare settings without code changes.
 # A new chunk size or overlap only takes effect after running ingest.py again.

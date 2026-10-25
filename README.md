@@ -38,6 +38,7 @@ Answer with source citations  [1] file.pdf, page 13
 | `llm_client.py` | One interface (`embed`, `chat`) over Azure OpenAI and Ollama, with rate-limit retries |
 | `ingest.py` | **Indexing** — read documents, chunk, embed, store |
 | `ask.py` | **Retrieval + generation** from the command line |
+| `levels.py` | School type, year and stream per document (`docs/manifest.json`) and the level filter |
 | `api.py` | The same pipeline as a REST API (FastAPI) |
 | `tools.py` | Agent tool registry: schemas, risk levels, validation and business rules |
 | `store.py` | Agent state in SQLite: actions, audit log, notes, outbox |
@@ -51,7 +52,7 @@ Answer with source citations  [1] file.pdf, page 13
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/health` | Liveness check; also reports the active backend |
-| `POST` | `/ask` | Body `{"question": "..."}` → `{"answer": "...", "sources": [...]}` |
+| `POST` | `/ask` | Body `{"question": "...", "niveau"?, "leerjaar"?, "stroom"?}` → `{"answer": "...", "sources": [...]}` |
 | `GET` | `/docs` | Interactive OpenAPI page |
 | `POST` | `/agent` | Body `{"message": "..."}` → answer plus the actions the agent proposed (needs `x-admin-key`) |
 | `GET` | `/actions?status=pending` | Actions waiting for review (needs `x-admin-key`) |
@@ -79,6 +80,48 @@ so a reader can check the answer. `cited` says whether the answer refers to that
 JSON line: time, question, backend and model, when the index was built (`indexed_at`), the chunk ids
 with their similarity, the answer and its citations. The API is public, so storing questions is
 a deliberate choice, not a default. A failed write is logged and never breaks an answer.
+
+## Level-aware search (Dutch maths)
+
+The next goal of this project is a maths assistant for Dutch teachers, from basisschool to vwo 6.
+In the Netherlands pupils are split by school type, not only by age, so material for vwo must
+never reach a vmbo-bb class. Each document therefore gets a level in `manifest.json` next to it:
+
+```json
+{
+  "breuken-groep7.md":  {"niveau": "po", "leerjaar": [7, 8], "domein": "Verhoudingen", "licentie": "CC BY-SA 4.0"},
+  "lineair-onderbouw.md": {"niveau": ["havo", "vwo"], "leerjaar": [1, 2]},
+  "statistiek-havo-a.md": {"niveau": "havo", "leerjaar": [4, 5], "stroom": "A"},
+  "pythagoras-vmbo.md": {"niveau": "vmbo", "leerjaar": 3, "stroom": ["kb", "gl", "tl"]}
+}
+```
+
+| Field | Values |
+|---|---|
+| `niveau` | `po`, `vmbo`, `havo`, `vwo`, or a list of them (basisschool and VO in separate files) |
+| `leerjaar` | one year or `[first, last]`; groep 1-8 for `po`, leerjaar 1-6 otherwise. Default: all years |
+| `stroom` | optional: `bb`/`kb`/`gl`/`tl` for vmbo, wiskunde `A`/`B`/`C`/`D` for havo/vwo. Default: all streams |
+| `domein`, `licentie`, `bron_url` | optional text, stored with every chunk |
+
+`ingest.py` stops on an impossible level (like havo 6) and names the entry, and lists documents that have
+no level. Without a `manifest.json` nothing changes. A question to `/ask` can then name a level:
+
+```json
+{"question": "Hoe los je 3(x + 4) = 27 op?", "niveau": "havo", "leerjaar": 2}
+```
+
+Only chunks for that school type, that year **and below**, and that stream are searched: earlier
+years stay in for repetition, later years are left out. Unlabelled chunks never match a level
+question, and when nothing matches, the API says so without calling the model.
+`levels.py` holds the rules; `tests/test_levels.py` checks the filter against a real ChromaDB.
+
+To keep the maths material apart from the other documents, index it into its own collection
+and start the API with the same variables:
+
+```bash
+DOCS_DIR=docs/wiskunde COLLECTION=wiskunde python ingest.py
+DOCS_DIR=docs/wiskunde COLLECTION=wiskunde python -m uvicorn api:app
+```
 
 ## Agent with guarded actions
 

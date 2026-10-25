@@ -18,13 +18,15 @@ SYSTEM_PROMPT = (
 CITATION = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")  # [2], and also [1, 3]
 SNIPPET_LENGTH = 200
 
-def retrieve(collection, question):
+def retrieve(collection, question, where=None):
     """Return the TOP_K most similar chunks with their metadata and distance.
 
     The chunk id (like "file.pdf-p13-c2") is added to the metadata as "chunk_id",
     so an answer can be traced back to the exact chunk, not only the page.
+    `where` is a ChromaDB metadata filter, like levels.where("havo", 2), to search one level only.
     """
-    result = collection.query(query_embeddings=embed([question]), n_results=TOP_K)
+    level = {"where": where} if where else {}
+    result = collection.query(query_embeddings=embed([question]), n_results=TOP_K, **level)
     metadatas = [{**meta, "chunk_id": chunk_id}
                  for chunk_id, meta in zip(result["ids"][0], result["metadatas"][0])]
     return list(zip(result["documents"][0], metadatas, result["distances"][0]))
