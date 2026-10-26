@@ -651,16 +651,26 @@ def _verify_steps(input_value: str, steps: Sequence[str] | None) -> dict[str, An
         status = "wrong"
         fields["failed_step_solution_set"] = _serialize_solution_set(parsed_sets[failed_step - 1])
         fields["explanation_nl"] = f"De eerste ongeldige stap is stap {failed_step}: de oplossingsverzameling verandert ten opzichte van de vorige stap."
+        # Every later step is judged against the step directly before it, so a
+        # student who makes a second, independent error gets both errors
+        # reported: invalid steps in additional_invalid_steps, and steps that
+        # correctly carry an earlier error forward in steps_consistent_after_error.
         consistent_after: list[int] = []
+        additional_invalid: list[int] = []
         for index in range(failed_step, len(parsed_sets)):
             if _same_set(parsed_sets[index - 1], parsed_sets[index]):
                 consistent_after.append(index + 1)
             else:
-                # Later consistency is measured from each local pair. If a
-                # second error occurs, it is not labelled as carried forward.
-                break
+                additional_invalid.append(index + 1)
         if consistent_after:
             fields["steps_consistent_after_error"] = consistent_after
+        if additional_invalid:
+            fields["additional_invalid_steps"] = additional_invalid
+            listed = ", ".join(str(step) for step in additional_invalid)
+            fields["explanation_nl"] += f" Daarna is ook stap {listed} ongeldig ten opzichte van de vorige stap."
+    # Only meaningful when the last line has the form x = ...: does the final
+    # answer match the solution set of the original equation?
+    fields["final_answer_correct"] = _same_set(parsed_sets[-1], original_set) if final_solved else None
     return _result(status, "step_validation", input_value, **fields)
 
 
