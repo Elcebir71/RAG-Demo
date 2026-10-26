@@ -61,10 +61,13 @@ def verify_math_tool(
         rewritten for another letter, e.g. "w = 4p + 10" and "p = (w - 10) / 4".
 
     Letters: any single letter can be a variable (case-sensitive); 'ab' means
-    a times b. e, i and π are reserved. Word formulas ('aantal') are not
-    supported. If an equation has more than one letter, pass the letter to
-    solve for in 'variable'. If the result has variable_mismatch, tell the
-    teacher the value is right but written under the wrong letter.
+    a times b. e and i are variables too, but e^x and i² return
+    ambiguous_constant: ask the teacher whether e is Euler's number or i the
+    imaginary unit. π is always the constant pi. Word formulas ('aantal') are
+    not supported. If an equation has more than one letter, pass the letter to
+    solve for in 'variable'. If the result has variable_mismatch with
+    value_correct true, tell the teacher the value is right but the answer is
+    written under the wrong letter (status is still 'wrong').
 
     Notation: decimal comma (1,5), mixed numbers (1 3/4), ':' for division,
     '×' or '·' for multiplication. A period inside a

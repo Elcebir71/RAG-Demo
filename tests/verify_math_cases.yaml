@@ -18,7 +18,8 @@ conventions:
     - formula_rewrite         # rewrite a formula for another letter (taken from the answer's left side)
   letters: >-
     Any single letter can be a variable (a, b, p, t, K ...); letters are case-sensitive.
-    e, i and π are reserved (Euler's number, imaginary unit, pi) and return unverifiable for now.
+    e and i are ordinary variables, except e with a letter exponent (e^x) and i squared (i²),
+    which return unverifiable/ambiguous_constant. π is always the constant pi.
     Multi-letter names (woordformules such as 'aantal') are not supported yet.
     When an equation has more than one letter, the unknown must be given in 'variable'.
   step_numbering: "Step 1 is the original equation; failed_step refers to the first invalid step."
@@ -451,9 +452,10 @@ cases:
     input: "2t + 1 = 9"
     submitted_answer: "x = 4"
     expected:
-      status: verified
+      status: wrong
       variable_mismatch: true
-    notes: "Decision 26 Oct 2026: the value counts; the mismatch is reported as a warning field."
+      value_correct: true
+    notes: "Decision changed 27 Oct 2026: the equation is solved for t, so x = 4 is wrong; value_correct tells the teacher the value itself is right."
 
   - id: VM055
     title: Two letters and no unknown given
@@ -527,12 +529,13 @@ cases:
     notes: "Planned later: accept with the condition t ≠ 0."
 
   - id: VM063
-    title: Reserved letter e
+    title: e is an ordinary variable in basic algebra
     check_type: equation_solution
-    curriculum_scope: tool_boundary_test
+    curriculum_scope: vwo1_candidate
     input: "e + 2 = 5"
     submitted_answer: "e = 3"
-    expected: {status: unverifiable, reason: reserved_symbol}
+    expected: {status: verified}
+    notes: "Decision changed 27 Oct 2026: e was reserved before; now only e^x is treated as ambiguous."
 
   - id: VM064
     title: Capital letter and decimal comma in a formula
@@ -543,3 +546,65 @@ cases:
     submitted_answer: "K = 25"
     expected: {status: verified, exact_value: "25"}
     notes: "Letters are case-sensitive: K and k are different variables."
+
+  # --- e, i and π by context (decision 27 Oct 2026) ---
+  - id: VM065
+    title: e with a letter exponent may be Euler's number
+    check_type: equation_solution
+    curriculum_scope: tool_boundary_test
+    input: "e^x = 1"
+    submitted_answer: "x = 0"
+    expected: {status: unverifiable, reason: ambiguous_constant}
+
+  - id: VM066
+    title: i squared may be the imaginary unit
+    check_type: equation_solution
+    curriculum_scope: tool_boundary_test
+    input: "i² = -1"
+    submitted_answer: "geen oplossing"
+    expected: {status: unverifiable, reason: ambiguous_constant}
+    notes: "With i as a real variable the answer would be 'geen oplossing'; in complex numbers i² = -1 is true. The tool must not choose."
+
+  - id: VM067
+    title: i as an ordinary variable
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "2i + 3 = 7"
+    submitted_answer: "i = 2"
+    expected: {status: verified}
+
+  - id: VM068
+    title: π is the constant pi, exact answer
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "2 · π · 3"
+    submitted_answer: "6π"
+    expected: {status: verified, exact_value: "6*pi"}
+
+  - id: VM069
+    title: Rounded value of an expression with π without a rounding instruction
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "2 · π · 3"
+    submitted_answer: "18,85"
+    expected: {status: wrong, exact_value: "6*pi"}
+    notes: "Same policy as VM023: approximations are only accepted when rounding is asked for."
+
+  - id: VM070
+    title: Area of a circle with π in a formula
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "O = πr²"
+    substitutions: {r: "3"}
+    submitted_answer: "O = 9π"
+    expected: {status: verified, exact_value: "9*pi"}
+
+  - id: VM071
+    title: Right value under the wrong letter after substituting
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "w = 4p + 10"
+    substitutions: {p: "3"}
+    submitted_answer: "p = 22"
+    expected: {status: wrong, variable_mismatch: true, value_correct: true}
+
