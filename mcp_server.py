@@ -43,6 +43,11 @@ def verify_math_tool(
     Use this tool before presenting any calculated answer, answer key or worked
     solution to a teacher. Report the tool's status exactly as returned.
 
+    When checking a student's work, always pass the student's answer in
+    submitted_answer exactly as the student wrote it; never correct it first.
+    Without an answer, arithmetic and formula_substitution only calculate and
+    return 'unverifiable' with reason 'no_claim_to_check'.
+
     check_type:
       - arithmetic: input is a numeric expression, e.g. "-3/4 + 2/3 × (-1,5)";
         submitted_answer is the claimed value, e.g. "-7/4".
@@ -61,8 +66,8 @@ def verify_math_tool(
         rewritten for another letter, e.g. "w = 4p + 10" and "p = (w - 10) / 4".
 
     Letters: any single letter can be a variable (case-sensitive); 'ab' means
-    a times b. e and i are variables too, but e^x and i² return
-    ambiguous_constant: ask the teacher whether e is Euler's number or i the
+    a times b. e and i are variables too, but any power of e (e², e^x) and
+    i² return ambiguous_constant: ask the teacher whether e is Euler's number or i the
     imaginary unit. π is always the constant pi. Word formulas ('aantal') are
     not supported. If an equation has more than one letter, pass the letter to
     solve for in 'variable'. If the result has variable_mismatch with

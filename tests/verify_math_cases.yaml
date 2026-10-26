@@ -18,7 +18,7 @@ conventions:
     - formula_rewrite         # rewrite a formula for another letter (taken from the answer's left side)
   letters: >-
     Any single letter can be a variable (a, b, p, t, K ...); letters are case-sensitive.
-    e and i are ordinary variables, except e with a letter exponent (e^x) and i squared (i²),
+    e and i are ordinary variables, except any power of e (e², e^x) and i to a power of 2 or more (i²),
     which return unverifiable/ambiguous_constant. π is always the constant pi.
     Multi-letter names (woordformules such as 'aantal') are not supported yet.
     When an equation has more than one letter, the unknown must be given in 'variable'.
@@ -607,4 +607,37 @@ cases:
     substitutions: {p: "3"}
     submitted_answer: "p = 22"
     expected: {status: wrong, variable_mismatch: true, value_correct: true}
+
+  - id: VM072
+    title: e squared may be a power of Euler's number
+    check_type: equation_solution
+    curriculum_scope: tool_boundary_test
+    input: "e² = 9"
+    submitted_answer: "e = 3"
+    expected: {status: unverifiable, reason: ambiguous_constant}
+    notes: "Added 27 Oct 2026: before this, only e with a letter exponent was ambiguous."
+
+  - id: VM073
+    title: Integer power of e written with a caret
+    check_type: expression_equivalence
+    curriculum_scope: tool_boundary_test
+    input: "e^2 · e = e^3"
+    expected: {status: unverifiable, reason: ambiguous_constant}
+
+  # --- No student answer means nothing was checked (decision 27 Oct 2026) ---
+  - id: VM074
+    title: Arithmetic without a submitted answer is not verified
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "4 · 3 + 10"
+    expected: {status: unverifiable, reason: no_claim_to_check, exact_value: "22"}
+    notes: "The value is still returned; only the label changes, so a caller cannot present a calculation as a checked answer."
+
+  - id: VM075
+    title: Formula substitution without a submitted answer is not verified
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "w = 4p + 10"
+    substitutions: {p: "3"}
+    expected: {status: unverifiable, reason: no_claim_to_check, exact_value: "22", target_variable: "w"}
 

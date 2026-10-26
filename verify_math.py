@@ -43,9 +43,10 @@ def _symbol(name: str) -> sp.Symbol:
 
 X = _symbol("x")
 
-# e and i are ordinary variables in basic algebra. Only where they clearly
-# look like a constant (e^x: Euler's number, i²: imaginary unit) the tool
-# refuses to guess and returns 'ambiguous_constant'. π is always the constant pi.
+# e and i are ordinary variables in basic algebra. As soon as e is raised to
+# any power (e², e^x: could be Euler's number) or i to a power of 2 or more
+# (i²: could be the imaginary unit), the tool refuses to guess and returns
+# 'ambiguous_constant'. π is always the constant pi.
 _RESERVED_LETTERS: frozenset[str] = frozenset()
 _EULER = "e"
 _IMAGINARY = "i"
@@ -81,6 +82,7 @@ _REASON_NL = {
     "ambiguous_dot_notation": "Puntnotatie in een getal is dubbelzinnig in Nederlandse notatie; gebruik een komma voor decimalen.",
     "variable_denominator_unsupported": "Een noemer met een letter kan domeinbeperkingen geven; deze invoer wordt niet automatisch vereenvoudigd.",
     "reserved_symbol": "Dit symbool is gereserveerd en kan niet als variabele worden gebruikt.",
+    "no_claim_to_check": "Er is geen antwoord van de leerling meegegeven; de waarde is berekend, maar er is niets gecontroleerd.",
     "ambiguous_constant": "Hier kan e het getal van Euler of i de imaginaire eenheid zijn. Geef aan of het een variabele of een constante is; de tool kiest niet zelf.",
     "word_variables_not_supported": "Woordformules met namen van meerdere letters worden nog niet ondersteund; gebruik één letter per variabele.",
     "ambiguous_unknown": "De vergelijking bevat meerdere letters; geef aan voor welke letter moet worden opgelost.",
@@ -293,9 +295,10 @@ class _Parser:
         if tok is not None and tok.kind == "OP" and tok.value == "^":
             self._take()
             exponent = self._parse_unary()
-            # e^x looks like Euler's number and i² like the imaginary unit:
-            # ask for context instead of silently treating them as variables.
-            if base == _symbol(_EULER) and exponent.free_symbols:
+            # Any power of e (e², e^x) may be Euler's number and i² the
+            # imaginary unit: ask for context instead of silently treating
+            # them as variables.
+            if base == _symbol(_EULER):
                 raise _MathInputError("ambiguous_constant")
             if base == _symbol(_IMAGINARY) and exponent.is_Integer and int(exponent) >= 2:
                 raise _MathInputError("ambiguous_constant")
@@ -567,6 +570,10 @@ def _verify_arithmetic(check_type: str, input_value: str, submitted_answer: str 
         value = _numeric_value(input_value)
     except _MathInputError as exc:
         if exc.reason == "division_by_zero":
+            if submitted_answer is None:
+                return _result("unverifiable", check_type, input_value, reason="no_claim_to_check",
+                               explanation_nl="De uitdrukking bevat een deling door nul; er is geen antwoord om te controleren.",
+                               parser_invoked=True)
             correctly_identifies_undefined = _is_undefined_phrase(submitted_answer)
             return _result(
                 "verified" if correctly_identifies_undefined else "wrong",
@@ -579,8 +586,10 @@ def _verify_arithmetic(check_type: str, input_value: str, submitted_answer: str 
         return _unverifiable(check_type, input_value, exc, parser_invoked=True)
     fields: dict[str, Any] = {"exact_value": _serialize_exact(value), "parser_invoked": True}
     if submitted_answer is None:
-        return _result("verified", check_type, input_value, **fields,
-                       explanation_nl="De uitdrukking is exact berekend.")
+        # Only a calculation happened: no student claim was checked, so this
+        # must never be reported as 'verified'. The value stays available.
+        return _result("unverifiable", check_type, input_value, **fields, reason="no_claim_to_check",
+                       explanation_nl=_REASON_NL["no_claim_to_check"])
     if _is_undefined_phrase(submitted_answer):
         # The expression has a value, so "kan niet" / "bestaat niet" is a wrong answer.
         return _result(
@@ -750,8 +759,10 @@ def _verify_formula_substitution(input_value: str, substitutions: Any, submitted
         "parser_invoked": True,
     }
     if submitted_answer is None:
-        return _result("verified", check_type, input_value, **fields,
-                       explanation_nl=f"Na invullen is {target.name} = {_serialize_exact(value)}.")
+        # Same rule as arithmetic: a value without a claim is not 'verified'.
+        return _result("unverifiable", check_type, input_value, **fields, reason="no_claim_to_check",
+                       explanation_nl=f"Na invullen is {target.name} = {_serialize_exact(value)}, "
+                                      "maar er is geen antwoord van de leerling meegegeven.")
     try:
         answer_name, candidate = _parse_assignment(submitted_answer)
         if candidate.free_symbols:
