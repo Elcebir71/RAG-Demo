@@ -43,9 +43,12 @@ def _symbol(name: str) -> sp.Symbol:
 
 X = _symbol("x")
 
-# e and i are reserved for Euler's number and the imaginary unit (bovenbouw);
-# π is reserved too. They return 'unverifiable' instead of becoming variables.
-_RESERVED_LETTERS = frozenset({"e", "i"})
+# e and i are ordinary variables in basic algebra. Only where they clearly
+# look like a constant (e^x: Euler's number, i²: imaginary unit) the tool
+# refuses to guess and returns 'ambiguous_constant'. π is always the constant pi.
+_RESERVED_LETTERS: frozenset[str] = frozenset()
+_EULER = "e"
+_IMAGINARY = "i"
 _SINGLE_LETTER_RE = re.compile(r"[A-Za-z]")
 # Three or more adjacent letters are a word (woordformule or prose), never a
 # product: 'ab' means a·b, but 'aantal' is not a·a·n·t·a·l.
@@ -55,7 +58,7 @@ _LETTER_RUN_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]{3,}")
 # Dutch prose is classified separately as a semantic formalisation task.
 # Quotes, underscores and other executable-looking syntax are rejected before
 # the parser is invoked.
-_ALLOWED_CHARS = re.compile(r"^[0-9A-Za-z+\-−–—*/:×·()^²³=,\.\s]*$")
+_ALLOWED_CHARS = re.compile(r"^[0-9A-Za-zπ+\-−–—*/:×·()^²³=,\.\s]*$")
 _SUSPICIOUS_CHARS = set("_'\"[]{}!@#$%&`\\;")
 _WORD_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]+")
 _MIXED_RE = re.compile(r"\d+\s+\d+\s*/\s*\d+")
@@ -77,7 +80,8 @@ _REASON_NL = {
     "ambiguous_comma_notation": "Deze komma-notatie is dubbelzinnig: het kan een decimaal getal of een coördinaat zijn.",
     "ambiguous_dot_notation": "Puntnotatie in een getal is dubbelzinnig in Nederlandse notatie; gebruik een komma voor decimalen.",
     "variable_denominator_unsupported": "Een noemer met een letter kan domeinbeperkingen geven; deze invoer wordt niet automatisch vereenvoudigd.",
-    "reserved_symbol": "De letters e en i en het symbool π zijn gereserveerd voor vaste wiskundige constanten en worden nog niet als variabele ondersteund.",
+    "reserved_symbol": "Dit symbool is gereserveerd en kan niet als variabele worden gebruikt.",
+    "ambiguous_constant": "Hier kan e het getal van Euler of i de imaginaire eenheid zijn. Geef aan of het een variabele of een constante is; de tool kiest niet zelf.",
     "word_variables_not_supported": "Woordformules met namen van meerdere letters worden nog niet ondersteund; gebruik één letter per variabele.",
     "ambiguous_unknown": "De vergelijking bevat meerdere letters; geef aan voor welke letter moet worden opgelost.",
     "invalid_variable": "De opgegeven onbekende is geen geldige letter uit de vergelijking.",
@@ -133,9 +137,6 @@ def _preflight(text: Any) -> tuple[bool, str | None]:
     if re.fullmatch(r"\(\s*\d+\s*,\s*\d+\s*\)", text.strip()):
         return False, "ambiguous_comma_notation"
 
-    if "π" in text:
-        return False, "reserved_symbol"
-
     words = _LETTER_RUN_RE.findall(text)
     if words:
         # A compact formula with a few multi-letter names is a woordformule;
@@ -149,9 +150,6 @@ def _preflight(text: Any) -> tuple[bool, str | None]:
         if _WORD_RE.search(text):
             return False, "requires_semantic_formalisation"
         return False, "disallowed_characters_or_syntax"
-
-    if any(char in _RESERVED_LETTERS for char in text):
-        return False, "reserved_symbol"
 
     # Only single ASCII letters remain, and each one is a variable.
     return True, None
@@ -187,7 +185,10 @@ def _tokenize(text: str) -> list[_Token]:
             pos = number.end()
             continue
 
-        if char.isascii() and char.isalpha():
+        if char == "π":
+            tokens.append(_Token("CONST", "pi", pos, pos + 1))
+            pos += 1
+        elif char.isascii() and char.isalpha():
             if char in _RESERVED_LETTERS:
                 raise _MathInputError("reserved_symbol")
             tokens.append(_Token("VAR", char, pos, pos + 1))
@@ -251,7 +252,7 @@ class _Parser:
         # Supports 2x, 2(...), x(...), and (...)(...). It intentionally does
         # not treat adjacency of two numeric tokens as multiplication: that
         # space is reserved for mixed-number notation (e.g. 1 3/4).
-        return token is not None and token.kind in ("VAR", "LPAREN")
+        return token is not None and token.kind in ("VAR", "CONST", "LPAREN")
 
     def _parse_term(self) -> sp.Expr:
         result = self._parse_unary()
@@ -292,6 +293,12 @@ class _Parser:
         if tok is not None and tok.kind == "OP" and tok.value == "^":
             self._take()
             exponent = self._parse_unary()
+            # e^x looks like Euler's number and i² like the imaginary unit:
+            # ask for context instead of silently treating them as variables.
+            if base == _symbol(_EULER) and exponent.free_symbols:
+                raise _MathInputError("ambiguous_constant")
+            if base == _symbol(_IMAGINARY) and exponent.is_Integer and int(exponent) >= 2:
+                raise _MathInputError("ambiguous_constant")
             if exponent.free_symbols or not exponent.is_Integer:
                 raise _MathInputError("unsupported_math_form")
             exp_value = int(exponent)
@@ -322,6 +329,8 @@ class _Parser:
             return sp.Rational(whole) + sp.Rational(numerator, denominator)
         if tok.kind == "VAR":
             return _symbol(tok.value)
+        if tok.kind == "CONST":
+            return sp.pi
         if tok.kind == "LPAREN":
             value = self._parse_expression()
             close = self._peek()
@@ -694,10 +703,15 @@ def _verify_equation_solution(input_value: str, submitted_answer: str | None, ta
             fields["rounded_answer"] = rounded_answer
     fields["variable"] = unknown.name
     if answer_name is not None and answer_name != unknown.name:
-        # Decision 26 Oct 2026: the value decides the status; the wrong letter
-        # is reported as a warning so the teacher can still see it.
+        # Decision 27 Oct 2026: the equation is solved for a specific letter,
+        # so a correct value under another letter is 'wrong'; value_correct
+        # tells the teacher the arithmetic itself was right.
         fields["variable_mismatch"] = True
-        fields["explanation_nl"] += f" Let op: de onbekende heet {unknown.name}, niet {answer_name}."
+        fields["value_correct"] = correct
+        if correct:
+            fields["explanation_nl"] = (f"De waarde klopt, maar de vergelijking wordt opgelost naar {unknown.name}; "
+                                        f"schrijf {unknown.name} = ... in plaats van {answer_name} = ... .")
+        correct = False
     return _result("verified" if correct else "wrong", "equation_solution", input_value, **fields)
 
 
@@ -749,7 +763,13 @@ def _verify_formula_substitution(input_value: str, substitutions: Any, submitted
     fields["explanation_nl"] = ("Het antwoord klopt na invullen." if correct
                                 else f"Na invullen is {target.name} = {_serialize_exact(value)}.")
     if answer_name is not None and answer_name != target.name:
+        # Same rule as equation_solution: right value, wrong letter is 'wrong'.
         fields["variable_mismatch"] = True
+        fields["value_correct"] = correct
+        if correct:
+            fields["explanation_nl"] = (f"De waarde klopt, maar de gevraagde letter is {target.name}, "
+                                        f"niet {answer_name}.")
+        correct = False
     return _result("verified" if correct else "wrong", check_type, input_value, **fields)
 
 
