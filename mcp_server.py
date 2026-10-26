@@ -23,6 +23,8 @@ CheckType = Literal[
     "expression_equivalence",
     "equation_solution",
     "step_validation",
+    "formula_substitution",
+    "formula_rewrite",
 ]
 
 
@@ -33,6 +35,8 @@ def verify_math_tool(
     submitted_answer: str | None = None,
     steps: list[str] | None = None,
     task_instruction: str | None = None,
+    variable: str | None = None,
+    substitutions: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Independently check a maths claim with SymPy (Dutch school notation).
 
@@ -50,9 +54,20 @@ def verify_math_tool(
         claimed solution, e.g. "x = 4", "geen oplossing" or "alle getallen".
       - step_validation: steps is the list of equation lines, the original
         equation first, e.g. ["3x - 5 = 7", "3x = 12", "x = 4"].
+      - formula_substitution: input is a letter formula, substitutions the
+        values to fill in, submitted_answer the claimed result,
+        e.g. "w = 4p + 10", {"p": "3"}, "w = 22".
+      - formula_rewrite: input is a formula, submitted_answer the formula
+        rewritten for another letter, e.g. "w = 4p + 10" and "p = (w - 10) / 4".
+
+    Letters: any single letter can be a variable (case-sensitive); 'ab' means
+    a times b. e, i and π are reserved. Word formulas ('aantal') are not
+    supported. If an equation has more than one letter, pass the letter to
+    solve for in 'variable'. If the result has variable_mismatch, tell the
+    teacher the value is right but written under the wrong letter.
 
     Notation: decimal comma (1,5), mixed numbers (1 3/4), ':' for division,
-    '×' or '·' for multiplication, only the variable x. A period inside a
+    '×' or '·' for multiplication. A period inside a
     number (1.000) is rejected as ambiguous.
 
     task_instruction: optional, e.g. "Rond af op 2 decimalen."
@@ -74,6 +89,8 @@ def verify_math_tool(
         submitted_answer=submitted_answer,
         steps=steps,
         task_instruction=task_instruction,
+        variable=variable,
+        substitutions=substitutions,
     )
 
 

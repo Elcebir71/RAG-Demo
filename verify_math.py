@@ -31,13 +31,31 @@ MAX_INPUT_LENGTH = 256
 MAX_TOKENS = 128
 MAX_NUMERIC_DIGITS = 32
 MAX_POWER_ABS = 20
-X = sp.Symbol("x", real=True)
+_SYMBOLS: dict[str, sp.Symbol] = {}
 
-# Keep the allowlist intentionally small. Letters other than x are not part of
-# the expression grammar; Dutch prose is classified separately as a semantic
-# formalisation task. Quotes, underscores and other executable-looking syntax
-# are rejected before the parser is invoked.
-_ALLOWED_CHARS = re.compile(r"^[0-9xX+\-−–—*/:×·()^²³=,\.\s]*$")
+
+def _symbol(name: str) -> sp.Symbol:
+    """One real SymPy symbol per single ASCII letter; letters are case-sensitive."""
+    if name not in _SYMBOLS:
+        _SYMBOLS[name] = sp.Symbol(name, real=True)
+    return _SYMBOLS[name]
+
+
+X = _symbol("x")
+
+# e and i are reserved for Euler's number and the imaginary unit (bovenbouw);
+# π is reserved too. They return 'unverifiable' instead of becoming variables.
+_RESERVED_LETTERS = frozenset({"e", "i"})
+_SINGLE_LETTER_RE = re.compile(r"[A-Za-z]")
+# Three or more adjacent letters are a word (woordformule or prose), never a
+# product: 'ab' means a·b, but 'aantal' is not a·a·n·t·a·l.
+_LETTER_RUN_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]{3,}")
+
+# Keep the allowlist intentionally small. Single ASCII letters are variables;
+# Dutch prose is classified separately as a semantic formalisation task.
+# Quotes, underscores and other executable-looking syntax are rejected before
+# the parser is invoked.
+_ALLOWED_CHARS = re.compile(r"^[0-9A-Za-z+\-−–—*/:×·()^²³=,\.\s]*$")
 _SUSPICIOUS_CHARS = set("_'\"[]{}!@#$%&`\\;")
 _WORD_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]+")
 _MIXED_RE = re.compile(r"\d+\s+\d+\s*/\s*\d+")
@@ -58,7 +76,12 @@ _REASON_NL = {
     "requires_semantic_formalisation": "Zet de tekst eerst om in een formule of vergelijking; dat kan de tool niet zelfstandig valideren.",
     "ambiguous_comma_notation": "Deze komma-notatie is dubbelzinnig: het kan een decimaal getal of een coördinaat zijn.",
     "ambiguous_dot_notation": "Puntnotatie in een getal is dubbelzinnig in Nederlandse notatie; gebruik een komma voor decimalen.",
-    "variable_denominator_unsupported": "Een noemer die van x afhangt kan domeinbeperkingen geven; deze invoer wordt niet automatisch vereenvoudigd.",
+    "variable_denominator_unsupported": "Een noemer met een letter kan domeinbeperkingen geven; deze invoer wordt niet automatisch vereenvoudigd.",
+    "reserved_symbol": "De letters e en i en het symbool π zijn gereserveerd voor vaste wiskundige constanten en worden nog niet als variabele ondersteund.",
+    "word_variables_not_supported": "Woordformules met namen van meerdere letters worden nog niet ondersteund; gebruik één letter per variabele.",
+    "ambiguous_unknown": "De vergelijking bevat meerdere letters; geef aan voor welke letter moet worden opgelost.",
+    "invalid_variable": "De opgegeven onbekende is geen geldige letter uit de vergelijking.",
+    "invalid_substitution": "De in te vullen waarden moeten bij letters uit de formule horen en getallen zijn.",
     "unsupported_variable": "Deze verifier ondersteunt alleen de variabele x; andere variabelen worden niet gecontroleerd.",
     "division_by_zero": "De uitdrukking bevat een deling door nul en heeft daarom geen geldige waarde.",
     "unsupported_math_form": "Deze wiskundige notatie valt buiten de ondersteunde grammatica.",
@@ -76,6 +99,8 @@ _PREFLIGHT_REASONS = {
     "ambiguous_dot_notation",
     "requires_semantic_formalisation",
     "unsupported_variable",
+    "reserved_symbol",
+    "word_variables_not_supported",
 }
 
 
@@ -108,24 +133,27 @@ def _preflight(text: Any) -> tuple[bool, str | None]:
     if re.fullmatch(r"\(\s*\d+\s*,\s*\d+\s*\)", text.strip()):
         return False, "ambiguous_comma_notation"
 
+    if "π" in text:
+        return False, "reserved_symbol"
+
+    words = _LETTER_RUN_RE.findall(text)
+    if words:
+        # A compact formula with a few multi-letter names is a woordformule;
+        # anything else with words is prose that a human/model must first turn
+        # into a formula. This function must not invent an equation from it.
+        if "=" in text and not re.search(r"[.!?]", text) and len(words) <= 3 and _ALLOWED_CHARS.fullmatch(text):
+            return False, "word_variables_not_supported"
+        return False, "requires_semantic_formalisation"
+
     if not _ALLOWED_CHARS.fullmatch(text):
-        words = _WORD_RE.findall(text)
-        # When the input clearly looks like a compact equation but contains a
-        # variable other than x, report that actionable limitation instead of
-        # misclassifying it as a word problem.
-        if (words and any(word.casefold() != "x" for word in words)
-                and "=" in text and not re.search(r"[.!?]", text) and len(words) <= 3):
-            return False, "unsupported_variable"
-        if words and all(word.casefold() == "x" for word in words):
-            return False, "disallowed_characters_or_syntax"
-        # Natural language should be formalised by a human/model upstream;
-        # this function must not invent an equation from it.
-        if words and not any(char in _SUSPICIOUS_CHARS for char in text):
+        if _WORD_RE.search(text):
             return False, "requires_semantic_formalisation"
         return False, "disallowed_characters_or_syntax"
 
-    # 'x' is the only supported variable. The allowed-character regex already
-    # excludes all other letters, so no separate names/functions can enter.
+    if any(char in _RESERVED_LETTERS for char in text):
+        return False, "reserved_symbol"
+
+    # Only single ASCII letters remain, and each one is a variable.
     return True, None
 
 
@@ -159,8 +187,10 @@ def _tokenize(text: str) -> list[_Token]:
             pos = number.end()
             continue
 
-        if char in "xX":
-            tokens.append(_Token("VAR", "x", pos, pos + 1))
+        if char.isascii() and char.isalpha():
+            if char in _RESERVED_LETTERS:
+                raise _MathInputError("reserved_symbol")
+            tokens.append(_Token("VAR", char, pos, pos + 1))
             pos += 1
         elif char == "(":
             tokens.append(_Token("LPAREN", char, pos, pos + 1))
@@ -236,7 +266,7 @@ class _Parser:
                     # SymPy may simplify x/x to 1 and erase x != 0. To avoid
                     # accidentally asserting an identity over an invalid domain,
                     # fail closed whenever a denominator still depends on x.
-                    if rhs.has(X):
+                    if rhs.free_symbols:
                         raise _MathInputError("variable_denominator_unsupported")
                     result = sp.Mul(result, sp.Pow(rhs, -1, evaluate=True), evaluate=True)
                 else:
@@ -269,7 +299,7 @@ class _Parser:
                 raise _MathInputError("unsupported_math_form")
             if base == 0 and exp_value < 0:
                 raise _MathInputError("division_by_zero")
-            if exp_value < 0 and base.has(X):
+            if exp_value < 0 and base.free_symbols:
                 raise _MathInputError("variable_denominator_unsupported")
             return sp.Pow(base, exponent, evaluate=True)
         return base
@@ -291,7 +321,7 @@ class _Parser:
                 raise _MathInputError("division_by_zero")
             return sp.Rational(whole) + sp.Rational(numerator, denominator)
         if tok.kind == "VAR":
-            return X
+            return _symbol(tok.value)
         if tok.kind == "LPAREN":
             value = self._parse_expression()
             close = self._peek()
@@ -333,11 +363,52 @@ def _serialize_exact(expr: sp.Expr) -> str:
     return sp.sstr(expr)
 
 
-def _solution_set(lhs: sp.Expr, rhs: sp.Expr) -> sp.Set:
+def _solve_linear(difference: sp.Expr, unknown: sp.Symbol) -> sp.Expr:
+    """Solve difference = 0 for unknown when it is linear with a numeric coefficient.
+
+    Used when other letters are present (formulas). A coefficient containing a
+    letter would mean dividing by that letter, which needs a domain condition,
+    so it fails closed.
+    """
+    try:
+        poly = sp.Poly(sp.expand(difference), unknown)
+    except sp.PolynomialError as exc:
+        raise _MathInputError("unsupported_solution_set") from exc
+    if poly.degree() != 1:
+        raise _MathInputError("unsupported_solution_set")
+    coefficient, constant = poly.all_coeffs()
+    if coefficient.free_symbols:
+        raise _MathInputError("variable_denominator_unsupported")
+    return sp.simplify(-constant / coefficient)
+
+
+def _pick_unknown(symbols: set, variable: str | None) -> sp.Symbol:
+    """Choose the letter to solve for; never guess when there are several."""
+    if variable is not None:
+        if (not isinstance(variable, str) or not _SINGLE_LETTER_RE.fullmatch(variable)
+                or variable in _RESERVED_LETTERS):
+            raise _MathInputError("invalid_variable")
+        unknown = _symbol(variable)
+        if symbols and unknown not in symbols:
+            raise _MathInputError("invalid_variable")
+        return unknown
+    if len(symbols) == 1:
+        return next(iter(symbols))
+    if not symbols:
+        return X
+    raise _MathInputError("ambiguous_unknown")
+
+
+def _solution_set(lhs: sp.Expr, rhs: sp.Expr, unknown: sp.Symbol = X) -> sp.Set:
     difference = sp.simplify(lhs - rhs)
-    if not difference.has(X):
+    others = difference.free_symbols - {unknown}
+    if not difference.has(unknown):
+        if others:
+            raise _MathInputError("unsupported_solution_set")
         return sp.S.Reals if difference == 0 else sp.S.EmptySet
-    result = sp.solveset(difference, X, domain=sp.S.Reals)
+    if others:
+        return sp.FiniteSet(_solve_linear(difference, unknown))
+    result = sp.solveset(difference, unknown, domain=sp.S.Reals)
     if isinstance(result, (sp.FiniteSet, sp.EmptySet)) or result == sp.S.Reals:
         return result
     raise _MathInputError("unsupported_solution_set")
@@ -379,6 +450,32 @@ def _answer_value(text: str) -> sp.Expr:
             raise _MathInputError("invalid_answer")
         candidate = rhs_text.strip()
     return _numeric_value(candidate)
+
+
+def _parse_assignment(text: Any) -> tuple[str | None, sp.Expr]:
+    """Parse an answer such as 'p = 3', 'a = 10 - 2b' or just '3'.
+
+    Returns the letter on the left (or None) and the expression on the right.
+    """
+    if not isinstance(text, str):
+        raise _MathInputError("invalid_answer")
+    candidate = text.strip()
+    name: str | None = None
+    if candidate.count("=") == 1:
+        lhs_text, rhs_text = candidate.split("=", 1)
+        lhs_text = lhs_text.strip()
+        if not _SINGLE_LETTER_RE.fullmatch(lhs_text):
+            raise _MathInputError("invalid_answer")
+        if lhs_text in _RESERVED_LETTERS:
+            raise _MathInputError("reserved_symbol")
+        name = lhs_text
+        candidate = rhs_text.strip()
+    elif "=" in candidate:
+        raise _MathInputError("invalid_answer")
+    expr = _safe_parse_expr(candidate)
+    if expr.has(sp.zoo, sp.nan, sp.oo, -sp.oo):
+        raise _MathInputError("unsupported_math_form")
+    return name, expr
 
 
 def _parse_rounding_places(instruction: str | None) -> int | None:
@@ -532,10 +629,12 @@ def _verify_expression_equivalence(input_value: str) -> dict[str, Any]:
     )
 
 
-def _verify_equation_solution(input_value: str, submitted_answer: str | None, task_instruction: str | None) -> dict[str, Any]:
+def _verify_equation_solution(input_value: str, submitted_answer: str | None, task_instruction: str | None,
+                              variable: str | None = None) -> dict[str, Any]:
     try:
         lhs, rhs = _parse_equation(input_value)
-        solutions = _solution_set(lhs, rhs)
+        unknown = _pick_unknown(lhs.free_symbols | rhs.free_symbols, variable)
+        solutions = _solution_set(lhs, rhs, unknown)
         serialized_solutions = _serialize_solution_set(solutions)
     except _MathInputError as exc:
         return _unverifiable("equation_solution", input_value, exc,
@@ -562,8 +661,10 @@ def _verify_equation_solution(input_value: str, submitted_answer: str | None, ta
                                        else "De vergelijking is niet waar voor alle reële getallen."))
 
     try:
-        candidate = _answer_value(submitted_answer)
+        answer_name, candidate = _parse_assignment(submitted_answer)
         places = _parse_rounding_places(task_instruction)
+        if candidate.has(unknown):
+            raise _MathInputError("invalid_answer")
     except _MathInputError as exc:
         return _unverifiable("equation_solution", input_value, exc, parser_invoked=True)
 
@@ -573,7 +674,8 @@ def _verify_equation_solution(input_value: str, submitted_answer: str | None, ta
     exact_match = isinstance(solutions, sp.FiniteSet) and len(solutions) == 1 and sp.simplify(candidate - next(iter(solutions))) == 0
     rounded_match = False
     rounded_answer: str | None = None
-    if places is not None and isinstance(solutions, sp.FiniteSet) and len(solutions) == 1:
+    if (places is not None and isinstance(solutions, sp.FiniteSet) and len(solutions) == 1
+            and candidate.is_number and next(iter(solutions)).is_number):
         exact_solution = next(iter(solutions))
         rounded_value = _rounded_rational(exact_solution, places)
         rounded_match = sp.simplify(candidate - rounded_value) == 0
@@ -590,15 +692,104 @@ def _verify_equation_solution(input_value: str, submitted_answer: str | None, ta
         fields["decimal_places"] = places
         if rounded_answer is not None:
             fields["rounded_answer"] = rounded_answer
+    fields["variable"] = unknown.name
+    if answer_name is not None and answer_name != unknown.name:
+        # Decision 26 Oct 2026: the value decides the status; the wrong letter
+        # is reported as a warning so the teacher can still see it.
+        fields["variable_mismatch"] = True
+        fields["explanation_nl"] += f" Let op: de onbekende heet {unknown.name}, niet {answer_name}."
     return _result("verified" if correct else "wrong", "equation_solution", input_value, **fields)
 
 
-def _is_solved_form(equation_text: str) -> bool:
+def _verify_formula_substitution(input_value: str, substitutions: Any, submitted_answer: str | None) -> dict[str, Any]:
+    """Fill in given values (e.g. p = 3 in w = 4p + 10) and check the result."""
+    check_type = "formula_substitution"
+    try:
+        lhs, rhs = _parse_equation(input_value)
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc,
+                             parser_invoked=exc.reason not in _PREFLIGHT_REASONS)
+    try:
+        if not isinstance(substitutions, dict) or not substitutions:
+            raise _MathInputError("invalid_substitution")
+        formula_symbols = lhs.free_symbols | rhs.free_symbols
+        mapping: dict[sp.Symbol, sp.Expr] = {}
+        for name, raw_value in substitutions.items():
+            if (not isinstance(name, str) or not _SINGLE_LETTER_RE.fullmatch(name)
+                    or name in _RESERVED_LETTERS or _symbol(name) not in formula_symbols):
+                raise _MathInputError("invalid_substitution")
+            mapping[_symbol(name)] = _numeric_value(str(raw_value))
+        difference = sp.simplify((lhs - rhs).subs(mapping))
+        remaining = difference.free_symbols
+        if len(remaining) != 1:
+            raise _MathInputError("ambiguous_unknown")
+        target = next(iter(remaining))
+        value = _solve_linear(difference, target)
+        if not value.is_number:
+            raise _MathInputError("unsupported_solution_set")
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc, parser_invoked=True)
+
+    fields: dict[str, Any] = {
+        "exact_value": _serialize_exact(value),
+        "target_variable": target.name,
+        "parser_invoked": True,
+    }
+    if submitted_answer is None:
+        return _result("verified", check_type, input_value, **fields,
+                       explanation_nl=f"Na invullen is {target.name} = {_serialize_exact(value)}.")
+    try:
+        answer_name, candidate = _parse_assignment(submitted_answer)
+        if candidate.free_symbols:
+            raise _MathInputError("invalid_answer")
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc, parser_invoked=True)
+    correct = sp.simplify(candidate - value) == 0
+    fields["submitted_answer"] = submitted_answer
+    fields["explanation_nl"] = ("Het antwoord klopt na invullen." if correct
+                                else f"Na invullen is {target.name} = {_serialize_exact(value)}.")
+    if answer_name is not None and answer_name != target.name:
+        fields["variable_mismatch"] = True
+    return _result("verified" if correct else "wrong", check_type, input_value, **fields)
+
+
+def _verify_formula_rewrite(input_value: str, submitted_answer: str | None) -> dict[str, Any]:
+    """Check a formula rewritten for another letter, e.g. w = 4p + 10 -> p = (w - 10) / 4."""
+    check_type = "formula_rewrite"
+    try:
+        lhs, rhs = _parse_equation(input_value)
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc,
+                             parser_invoked=exc.reason not in _PREFLIGHT_REASONS)
+    try:
+        if submitted_answer is None:
+            raise _MathInputError("invalid_answer")
+        answer_name, candidate = _parse_assignment(submitted_answer)
+        if answer_name is None:
+            raise _MathInputError("invalid_answer")
+        target = _symbol(answer_name)
+        if target not in (lhs.free_symbols | rhs.free_symbols) or candidate.has(target):
+            raise _MathInputError("invalid_answer")
+        solution = _solve_linear(sp.simplify(lhs - rhs), target)
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc, parser_invoked=True)
+    correct = sp.simplify(candidate - solution) == 0
+    expected = f"{target.name} = {sp.sstr(solution)}"
+    return _result(
+        "verified" if correct else "wrong", check_type, input_value,
+        target_variable=target.name, expected_formula=expected,
+        submitted_answer=submitted_answer, parser_invoked=True,
+        explanation_nl=("De herschreven formule is equivalent met de oorspronkelijke." if correct
+                        else f"Herschreven naar {target.name} hoort de formule {expected} te zijn."),
+    )
+
+
+def _is_solved_form(equation_text: str, unknown: sp.Symbol = X) -> bool:
     try:
         lhs, rhs = _parse_equation(equation_text)
     except _MathInputError:
         return False
-    return (lhs == X and not rhs.has(X)) or (rhs == X and not lhs.has(X))
+    return (lhs == unknown and not rhs.has(unknown)) or (rhs == unknown and not lhs.has(unknown))
 
 
 def _steps_from_input(input_value: str) -> list[str]:
@@ -611,7 +802,7 @@ def _steps_from_input(input_value: str) -> list[str]:
     return [input_value.strip()]
 
 
-def _verify_steps(input_value: str, steps: Sequence[str] | None) -> dict[str, Any]:
+def _verify_steps(input_value: str, steps: Sequence[str] | None, variable: str | None = None) -> dict[str, Any]:
     given_steps = list(steps) if steps is not None else _steps_from_input(input_value)
     if len(given_steps) < 1 or any(not isinstance(step, str) or not step.strip() for step in given_steps):
         return _unverifiable("step_validation", input_value, _MathInputError("invalid_equation"))
@@ -619,10 +810,16 @@ def _verify_steps(input_value: str, steps: Sequence[str] | None) -> dict[str, An
     parsed_sets: list[sp.Set] = []
     parser_invoked = False
     try:
+        equations = []
         for step in given_steps:
-            lhs, rhs = _parse_equation(step)
+            equations.append(_parse_equation(step))
             parser_invoked = True
-            parsed_sets.append(_solution_set(lhs, rhs))
+        all_symbols: set = set()
+        for lhs, rhs in equations:
+            all_symbols |= lhs.free_symbols | rhs.free_symbols
+        unknown = _pick_unknown(all_symbols, variable)
+        for lhs, rhs in equations:
+            parsed_sets.append(_solution_set(lhs, rhs, unknown))
     except _MathInputError as exc:
         # A policy/length rejection can happen before parser entry; do not
         # imply the expression was analysed if it was not.
@@ -636,7 +833,7 @@ def _verify_steps(input_value: str, steps: Sequence[str] | None) -> dict[str, An
             failed_step = index + 1  # One-based numbering; step 1 is the original.
             break
 
-    final_solved = _is_solved_form(given_steps[-1])
+    final_solved = _is_solved_form(given_steps[-1], unknown)
     fields: dict[str, Any] = {
         "failed_step": failed_step,
         "is_solved_form": final_solved,
@@ -680,22 +877,29 @@ def verify_math(
     submitted_answer: str | None = None,
     steps: Sequence[str] | None = None,
     task_instruction: str | None = None,
+    variable: str | None = None,
+    substitutions: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Verify one supported mathematical claim and return a structured result.
 
     Args:
         check_type: one of arithmetic, answer_equivalence, expression_equivalence,
-            equation_solution, step_validation.
+            equation_solution, step_validation, formula_substitution, formula_rewrite.
         input: expression or equation; not used to infer a word problem's meaning.
         submitted_answer: answer to compare for arithmetic/equation checks.
         steps: explicit equation steps for step_validation. When omitted, an
             arrow-delimited input string is accepted for compatibility.
         task_instruction: optional Dutch rounding instruction, e.g.
             ``Rond af op 2 decimalen.``
+        variable: the letter to solve for when an equation contains more than
+            one letter (equation_solution, step_validation).
+        substitutions: values to fill in for formula_substitution, e.g.
+            ``{"p": "3"}``.
 
     Returns a dictionary with status in {verified, wrong, unverifiable}.
     """
-    allowed_types = {"arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution", "step_validation"}
+    allowed_types = {"arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
+                     "step_validation", "formula_substitution", "formula_rewrite"}
     if check_type not in allowed_types:
         return _unverifiable(str(check_type), input, _MathInputError("unsupported_math_form"))
     if not isinstance(input, str):
@@ -708,8 +912,12 @@ def verify_math(
     if check_type == "expression_equivalence":
         return _verify_expression_equivalence(input)
     if check_type == "equation_solution":
-        return _verify_equation_solution(input, submitted_answer, task_instruction)
-    return _verify_steps(input, steps)
+        return _verify_equation_solution(input, submitted_answer, task_instruction, variable)
+    if check_type == "formula_substitution":
+        return _verify_formula_substitution(input, substitutions, submitted_answer)
+    if check_type == "formula_rewrite":
+        return _verify_formula_rewrite(input, submitted_answer)
+    return _verify_steps(input, steps, variable)
 
 
 if __name__ == "__main__":
@@ -718,9 +926,15 @@ if __name__ == "__main__":
     import json
 
     cli = argparse.ArgumentParser(description="Conservative Dutch maths verifier")
-    cli.add_argument("check_type", choices=["arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution", "step_validation"])
+    cli.add_argument("check_type", choices=["arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
+                                            "step_validation", "formula_substitution", "formula_rewrite"])
     cli.add_argument("input", help="Expression, equation, or arrow-delimited steps")
     cli.add_argument("--answer")
     cli.add_argument("--instruction")
+    cli.add_argument("--variable")
+    cli.add_argument("--set", action="append", default=[], metavar="LETTER=VALUE",
+                     help="value to fill in for formula_substitution, e.g. --set p=3")
     args = cli.parse_args()
-    print(json.dumps(verify_math(args.check_type, args.input, args.answer, task_instruction=args.instruction), ensure_ascii=False, indent=2))
+    values = dict(item.split("=", 1) for item in args.set) or None
+    print(json.dumps(verify_math(args.check_type, args.input, args.answer, task_instruction=args.instruction,
+                                 variable=args.variable, substitutions=values), ensure_ascii=False, indent=2))
