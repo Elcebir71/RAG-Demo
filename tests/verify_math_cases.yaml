@@ -349,3 +349,49 @@ cases:
     input: "1,5 + 1,5"
     submitted_answer: "3"
     expected: {status: verified, exact_value: "3"}
+  - id: VM045
+    title: Two independent errors in one worked solution
+    check_type: step_validation
+    curriculum_scope: vwo1_candidate
+    steps: ["3(2x - 4) - 2(x + 5) = 4", "6x - 12 - 2x + 10 = 4", "4x - 2 = 4", "4x = 8", "x = 2"]
+    expected:
+      status: wrong
+      failed_step: 2
+      additional_invalid_steps: [4]
+      steps_consistent_after_error: [3, 5]
+      is_solved_form: true
+      final_answer_correct: false
+      original_solution_set: {kind: finite, values: ["13/2"]}
+    notes: "Step 2: -2 x 5 written as +10. Step 3 carries that error correctly. Step 4: 4x - 2 = 4 gives 4x = 6, not 4x = 8. Step 5 is consistent with step 4."
+  - id: VM046
+    title: Second error cancels the first; final answer correct, reasoning not
+    check_type: step_validation
+    curriculum_scope: vwo1_candidate
+    steps: ["2x + 3 = 7", "2x = 10", "2x = 4", "x = 2"]
+    expected:
+      status: wrong
+      failed_step: 2
+      additional_invalid_steps: [3]
+      steps_consistent_after_error: [4]
+      is_solved_form: true
+      final_answer_correct: true
+    notes: "The teacher must see that x = 2 is right but the working contains two invalid steps."
+  - id: VM047
+    title: Correct solution reports a correct final answer
+    check_type: step_validation
+    curriculum_scope: vwo1_candidate
+    steps: ["3x - 5 = 7", "3x = 12", "x = 4"]
+    expected:
+      status: verified
+      failed_step: null
+      final_answer_correct: true
+  - id: VM048
+    title: Unfinished working has no final-answer verdict
+    check_type: step_validation
+    curriculum_scope: vwo1_candidate
+    steps: ["3x - 5 = 7", "3x = 12"]
+    expected:
+      status: verified
+      is_solved_form: false
+      final_answer_correct: null
+

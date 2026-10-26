@@ -57,6 +57,12 @@ def verify_math_tool(
 
     task_instruction: optional, e.g. "Rond af op 2 decimalen."
 
+    For step_validation, tell the teacher every invalid step: failed_step is
+    the first one, additional_invalid_steps lists later independent errors,
+    steps_consistent_after_error lists steps that correctly carry an earlier
+    error forward, and final_answer_correct says whether the final x = ...
+    matches the original equation (it can be true even when steps are wrong).
+
     Returns status 'verified', 'wrong' or 'unverifiable'. 'unverifiable' means
     the tool could not check the claim; never present such a claim as checked.
     'verified' only covers the mathematical property tested, not whether a
