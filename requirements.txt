@@ -3,3 +3,5 @@ pypdf
 requests
 fastapi
 uvicorn[standard]
+SymPy>=1.12,<2.0
+

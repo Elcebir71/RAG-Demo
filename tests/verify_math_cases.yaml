@@ -1,0 +1,351 @@
+schema_version: 2
+suite_name: verify_math_initial_regression_suite
+language: nl-NL
+description: >-
+  Initial acceptance tests for verify_math. These are synthetic verification cases,
+  not an official VWO 1 curriculum map. Cases marked out_of_curriculum_tool_test
+  test the verifier's general mathematical behavior beyond the intended first level.
+
+conventions:
+  status_values: [verified, wrong, unverifiable]
+  check_types:
+    - arithmetic
+    - answer_equivalence
+    - expression_equivalence
+    - equation_solution
+    - step_validation
+  step_numbering: "Step 1 is the original equation; failed_step refers to the first invalid step."
+  solution_set_format:
+    finite: "{kind: finite, values: [...]}  # exact values as strings"
+    empty: "{kind: empty}"
+    all_reals: "{kind: all_reals}"
+
+cases:
+  - id: VM001
+    title: Fraction arithmetic with Dutch decimal comma
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "-3/4 + 2/3 × (-1,5)"
+    submitted_answer: "-7/4"
+    expected: {status: verified, exact_value: "-7/4"}
+    notes: "In this arithmetic-expression context, -1,5 is the decimal number -1.5."
+  - id: VM002
+    title: Decimal addition
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "1,25 + 0,5"
+    submitted_answer: "1,75"
+    expected: {status: verified, exact_value: "7/4"}
+  - id: VM003
+    title: Division written with colon
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "4 : 0,5"
+    submitted_answer: "8"
+    expected: {status: verified, exact_value: "8"}
+  - id: VM004
+    title: Parentheses and multiplication
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "4 × (1,5 + 0,5)"
+    submitted_answer: "8"
+    expected: {status: verified, exact_value: "8"}
+  - id: VM005
+    title: Incorrect arithmetic answer
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "4 × (1,5 + 0,5)"
+    submitted_answer: "7"
+    expected: {status: wrong, exact_value: "8"}
+  - id: VM021
+    title: Mixed-number notation
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "1 3/4 + 1/4"
+    submitted_answer: "2"
+    expected: {status: verified, exact_value: "2"}
+    notes: "Recognise 1 3/4 as a mixed number, never implicit multiplication."
+  - id: VM031
+    title: Unicode minus and middle dot
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "−2 · (−3)"
+    submitted_answer: "6"
+    expected: {status: verified, exact_value: "6"}
+  - id: VM032
+    title: Superscript powers
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "3² + 4²"
+    submitted_answer: "25"
+    expected: {status: verified, exact_value: "25"}
+  - id: VM033
+    title: Division by zero
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "4 : 0"
+    submitted_answer: "0"
+    expected: {status: wrong, exact_value: undefined}
+    notes: "Do not return zoo/oo as a valid answer."
+  - id: VM022
+    title: Fraction answer expressed as a terminating decimal
+    check_type: answer_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "-7/4"
+    submitted_answer: "-1,75"
+    expected: {status: verified, exact_value: "-7/4"}
+
+  - id: VM006
+    title: Equivalent expanded expression
+    check_type: expression_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "2(x + 3) = 2x + 6"
+    expected: {status: verified, equivalent: true}
+  - id: VM007
+    title: Correct distribution of a negative factor
+    check_type: expression_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "-2(x - 3) = -2x + 6"
+    expected: {status: verified, equivalent: true}
+  - id: VM008
+    title: Incorrect distribution of a negative factor
+    check_type: expression_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "-2(x - 3) = -2x - 6"
+    expected: {status: wrong, equivalent: false}
+    misconception: "The negative factor was not distributed correctly to the second term."
+  - id: VM009
+    title: Collecting like terms
+    check_type: expression_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "3x + 2x = 5x"
+    expected: {status: verified, equivalent: true}
+  - id: VM010
+    title: Polynomial factorisation identity
+    check_type: expression_equivalence
+    curriculum_scope: out_of_curriculum_tool_test
+    input: "x^2 - 1 = (x - 1)(x + 1)"
+    expected: {status: verified, equivalent: true}
+    notes: "General tool test, not asserted to be a VWO 1 topic."
+
+  - id: VM011
+    title: Correct solution to a linear equation
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "3x - 5 = 7"
+    submitted_answer: "x = 4"
+    expected: {status: verified, solution_set: {kind: finite, values: ["4"]}}
+  - id: VM012
+    title: Incorrect solution to a linear equation
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "3x - 5 = 7"
+    submitted_answer: "x = 3"
+    expected: {status: wrong, solution_set: {kind: finite, values: ["4"]}}
+  - id: VM013
+    title: Negative solution to a linear equation
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "2x + 6 = 0"
+    submitted_answer: "x = -3"
+    expected: {status: verified, solution_set: {kind: finite, values: ["-3"]}}
+  - id: VM014
+    title: Incomplete solution set for a quadratic equation
+    check_type: equation_solution
+    curriculum_scope: out_of_curriculum_tool_test
+    input: "x^2 = 9"
+    submitted_answer: "x = 3"
+    expected: {status: wrong, solution_set: {kind: finite, values: ["-3", "3"]}}
+    notes: "A single valid root is insufficient when the full solution set is requested."
+  - id: VM015
+    title: Exact decimal representation of a rational solution
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "2x = 1"
+    submitted_answer: "x = 0,5"
+    expected: {status: verified, solution_set: {kind: finite, values: ["1/2"]}}
+  - id: VM023
+    title: Rounded answer without a rounding instruction
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "3x = 1"
+    submitted_answer: "x = 0,33"
+    task_instruction: null
+    expected: {status: wrong, solution_set: {kind: finite, values: ["1/3"]}}
+  - id: VM024
+    title: Rounded answer when two decimals are explicitly requested
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "3x = 1"
+    submitted_answer: "x = 0,33"
+    task_instruction: "Rond af op 2 decimalen."
+    expected:
+      status: verified
+      solution_set: {kind: finite, values: ["1/3"]}
+      rounded_answer: "0,33"
+      decimal_places: 2
+  - id: VM025
+    title: Equation has no solution
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "2x + 1 = 2x + 3"
+    submitted_answer: "geen oplossing"
+    expected: {status: verified, solution_set: {kind: empty}}
+  - id: VM026
+    title: Equation is true for every real number
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "2(x + 1) = 2x + 2"
+    submitted_answer: "alle getallen"
+    expected: {status: verified, solution_set: {kind: all_reals}}
+
+  - id: VM016
+    title: Fully correct sequence of equation steps
+    check_type: step_validation
+    curriculum_scope: vwo1_candidate
+    steps: ["3x - 5 = 7", "3x = 12", "x = 4"]
+    expected: {status: verified, failed_step: null, is_solved_form: true}
+  - id: VM017
+    title: Incorrect final equation step
+    check_type: step_validation
+    curriculum_scope: vwo1_candidate
+    steps: ["3x - 5 = 7", "3x = 12", "x = 3"]
+    expected:
+      status: wrong
+      failed_step: 3
+      is_solved_form: true
+      original_solution_set: {kind: finite, values: ["4"]}
+  - id: VM018
+    title: First error is incorrect distribution
+    check_type: step_validation
+    curriculum_scope: vwo1_candidate
+    steps: ["-2(x - 3) = 4", "-2x - 6 = 4"]
+    expected:
+      status: wrong
+      failed_step: 2
+      is_solved_form: false
+      original_solution_set: {kind: finite, values: ["1"]}
+    misconception: "The sign on the second term changed incorrectly during distribution."
+  - id: VM019
+    title: A root is lost by dividing by the variable
+    check_type: step_validation
+    curriculum_scope: out_of_curriculum_tool_test
+    steps: ["x^2 = x", "x = 1"]
+    expected:
+      status: wrong
+      failed_step: 2
+      original_solution_set: {kind: finite, values: ["0", "1"]}
+      failed_step_solution_set: {kind: finite, values: ["1"]}
+  - id: VM020
+    title: Correct one-step equation solution
+    check_type: step_validation
+    curriculum_scope: vwo1_candidate
+    steps: ["x + 2 = 5", "x = 3"]
+    expected: {status: verified, failed_step: null, is_solved_form: true}
+  - id: VM027
+    title: Correct but unfinished equation transformation
+    check_type: step_validation
+    curriculum_scope: vwo1_candidate
+    steps: ["3x - 5 = 7", "3x = 12"]
+    expected: {status: verified, failed_step: null, is_solved_form: false}
+  - id: VM034
+    title: Error carried forward consistently after a wrong step
+    check_type: step_validation
+    curriculum_scope: vwo1_candidate
+    steps: ["-2(x - 3) = 4", "-2x - 6 = 4", "-2x = 10", "x = -5"]
+    expected:
+      status: wrong
+      failed_step: 2
+      is_solved_form: true
+      original_solution_set: {kind: finite, values: ["1"]}
+      steps_consistent_after_error: [3, 4]
+    notes: "Steps 3 and 4 are valid relative to step 2; step 2 is the first error."
+
+  - id: VM028
+    title: Ambiguous coordinate-like comma notation
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "(1,5)"
+    expected: {status: unverifiable, reason: ambiguous_comma_notation}
+  - id: VM029
+    title: Reject executable-looking input before parsing
+    check_type: arithmetic
+    curriculum_scope: tool_security_test
+    input: "__import__('os')"
+    expected: {status: unverifiable, reason: disallowed_characters_or_syntax, parser_invoked: false}
+  - id: VM035
+    title: Input longer than the allowed length
+    check_type: arithmetic
+    curriculum_scope: tool_security_test
+    input_generator: {repeat: "1+", times: 300, suffix: "1"}
+    expected: {status: unverifiable, reason: input_too_long, parser_invoked: false}
+  - id: VM030
+    title: Word problem without a formalised expression
+    check_type: equation_solution
+    curriculum_scope: tool_boundary_test
+    input: "Een woordprobleem zonder formule of expliciete vergelijking."
+    expected: {status: unverifiable, reason: requires_semantic_formalisation}
+
+  - id: VM036
+    title: Reject period-based thousands separator as ambiguous Dutch notation
+    check_type: arithmetic
+    curriculum_scope: tool_boundary_test
+    input: "1.000 + 2"
+    submitted_answer: "1002"
+    expected: {status: unverifiable, reason: ambiguous_dot_notation, parser_invoked: false}
+    notes: "In Dutch notation a period may be a thousands separator; do not silently treat 1.000 as 1."
+  - id: VM037
+    title: Variable denominator has a domain restriction
+    check_type: expression_equivalence
+    curriculum_scope: tool_boundary_test
+    input: "x / x = 1"
+    expected: {status: unverifiable, reason: variable_denominator_unsupported, parser_invoked: true}
+    notes: "The expression is undefined at x=0; parser simplification must not erase that restriction."
+  - id: VM038
+    title: Reject unsupported variable with a specific reason
+    check_type: expression_equivalence
+    curriculum_scope: tool_boundary_test
+    input: "y = 2x"
+    expected: {status: unverifiable, reason: unsupported_variable, parser_invoked: false}
+  - id: VM039
+    title: Division by zero described as impossible
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "4 : 0"
+    submitted_answer: "kan niet"
+    expected: {status: verified, reason: division_by_zero, parser_invoked: true}
+  - id: VM040
+    title: Division by zero described as nonexistent
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "4 : 0"
+    submitted_answer: "bestaat niet"
+    expected: {status: verified, reason: division_by_zero, parser_invoked: true}
+  - id: VM041
+    title: Constant denominator remains supported
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "x / 2 = 3"
+    submitted_answer: "x = 6"
+    expected: {status: verified, solution_set: {kind: finite, values: ["6"]}}
+    notes: "Regression guard: the variable-denominator rule must not block ordinary divisions by a number."
+  - id: VM042
+    title: Variable denominator inside parentheses
+    check_type: expression_equivalence
+    curriculum_scope: tool_boundary_test
+    input: "6 / (2x) = 3 / x"
+    expected: {status: unverifiable, reason: variable_denominator_unsupported, parser_invoked: true}
+  - id: VM043
+    title: Saying "kan niet" for an expression that has a value
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "4 : 2"
+    submitted_answer: "kan niet"
+    expected: {status: wrong, exact_value: "2"}
+  - id: VM044
+    title: Dutch decimal comma still accepted after the dot rule
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "1,5 + 1,5"
+    submitted_answer: "3"
+    expected: {status: verified, exact_value: "3"}
