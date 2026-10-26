@@ -5,3 +5,6 @@ db/
 __pycache__/
 agent.db
 provenance.jsonl
+
+# Local eval run outputs
+evals/results/

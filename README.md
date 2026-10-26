@@ -398,6 +398,70 @@ documents you are allowed to publish.
 - [x] Retrieval quality check (`evals/`)
 - [x] Answer quality check: citation accuracy and "I don't know" on off-topic questions
 
+## Maths verification: `verify_math` + local MCP server
+
+A first building block for a maths-teacher assistant (Dutch secondary school, starting with VWO 1).
+An AI model can produce a worked solution; `verify_math` checks it **independently** with SymPy,
+so a teacher sees the AI answer and the verification result separately.
+
+**What it checks**
+
+| `check_type` | Example | Result |
+| --- | --- | --- |
+| `arithmetic` | `-3/4 + 2/3 × (-1,5)` = `-7/4` | exact fractions, no rounding |
+| `answer_equivalence` | `-7/4` vs `-1,75` | same value, different notation |
+| `expression_equivalence` | `-2(x - 3) = -2x + 6` | identity in x |
+| `equation_solution` | `3x - 5 = 7`, answer `x = 4` | full real solution set, incl. `geen oplossing` / `alle getallen` |
+| `step_validation` | `3x - 5 = 7 → 3x = 12 → x = 3` | first invalid step + steps consistent after the error |
+
+Every result has one of three statuses: `verified`, `wrong` or `unverifiable`.
+When the tool cannot check something reliably, it says so instead of guessing.
+
+**Dutch school notation:** decimal comma (`1,5`), mixed numbers (`1 3/4`), `:` for division,
+`×` / `·`, Unicode minus, `²`. `1.000` is rejected as ambiguous (thousands separator or decimal).
+
+**Safety:** no `eval` and no `sympy.parse_expr`. A small recursive-descent parser builds SymPy
+objects directly; an allowlist and a length limit reject input before parsing.
+
+```python
+from verify_math import verify_math
+
+verify_math("step_validation", steps=["-2(x - 3) = 4", "-2x - 6 = 4", "-2x = 10", "x = -5"])
+# {'status': 'wrong', 'failed_step': 2, 'steps_consistent_after_error': [3, 4], ...}
+```
+
+**Tests:** 44 acceptance cases in `tests/verify_math_cases.yaml` (correct and deliberately wrong
+solutions, unsafe input, ambiguous notation) plus unit tests: `python -m pytest -q`.
+
+### Use it from Claude Desktop (local MCP server)
+
+`mcp_server.py` exposes `verify_math` as an MCP tool over stdio. It runs only on your own machine.
+
+```bash
+pip install "mcp>=1.2,<2"
+```
+
+Add to `claude_desktop_config.json` (Settings → Developer → Edit Config), then restart Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "wiskunde-verify": {
+      "command": "C:\\path\\to\\.venv\\Scripts\\python.exe",
+      "args": ["C:\\path\\to\\RAG-Demo\\mcp_server.py"]
+    }
+  }
+}
+```
+
+Ask Claude for example: *"Gebruik de tool verify_math: klopt deze uitwerking?
+−2(x − 3) = 4 → −2x − 6 = 4 → −2x = 10 → x = −5"*. Claude calls the tool and reports that
+step 2 contains a sign error and that the correct solution is x = 1.
+
+**Limits:** only the variable `x`; no geometry figures; `verified` covers the mathematical
+property that was checked, not whether a word problem was modelled correctly. A teacher still
+reviews generated material.
+
 ## Author
 
 Hakan Şahin — [hakansahin.dev](https://hakansahin.dev)
