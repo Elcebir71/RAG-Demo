@@ -23,12 +23,19 @@ def build_input(case):
 def run_case(case):
     check_type = case["check_type"]
     input_value = build_input(case)
+    kwargs = {}
+    # Newer fields are passed only when a case uses them, so older cases keep
+    # working while the code for the new fields is still being written.
+    for optional in ("variable", "substitutions"):
+        if optional in case:
+            kwargs[optional] = case[optional]
     return verify_math(
         check_type=check_type,
         input=input_value,
         submitted_answer=case.get("submitted_answer"),
         steps=case.get("steps"),
         task_instruction=case.get("task_instruction"),
+        **kwargs,
     )
 
 

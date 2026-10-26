@@ -14,6 +14,13 @@ conventions:
     - expression_equivalence
     - equation_solution
     - step_validation
+    - formula_substitution    # put given values into a formula, compare with submitted_answer
+    - formula_rewrite         # rewrite a formula for another letter (taken from the answer's left side)
+  letters: >-
+    Any single letter can be a variable (a, b, p, t, K ...); letters are case-sensitive.
+    e, i and π are reserved (Euler's number, imaginary unit, pi) and return unverifiable for now.
+    Multi-letter names (woordformules such as 'aantal') are not supported yet.
+    When an equation has more than one letter, the unknown must be given in 'variable'.
   step_numbering: "Step 1 is the original equation; failed_step refers to the first invalid step."
   solution_set_format:
     finite: "{kind: finite, values: [...]}  # exact values as strings"
@@ -302,11 +309,12 @@ cases:
     expected: {status: unverifiable, reason: variable_denominator_unsupported, parser_invoked: true}
     notes: "The expression is undefined at x=0; parser simplification must not erase that restriction."
   - id: VM038
-    title: Reject unsupported variable with a specific reason
+    title: Two letters that are not an identity
     check_type: expression_equivalence
     curriculum_scope: tool_boundary_test
     input: "y = 2x"
-    expected: {status: unverifiable, reason: unsupported_variable, parser_invoked: false}
+    expected: {status: wrong, equivalent: false}
+    notes: "Changed 26 Oct 2026 when letters other than x became supported; before that this case expected unsupported_variable."
   - id: VM039
     title: Division by zero described as impossible
     check_type: arithmetic
@@ -395,3 +403,143 @@ cases:
       is_solved_form: false
       final_answer_correct: null
 
+  # --- Letters other than x (tests written before the code: these fail until implemented) ---
+  - id: VM049
+    title: Distributing over two letters
+    check_type: expression_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "2(a + b) = 2a + 2b"
+    expected: {status: verified, equivalent: true}
+
+  - id: VM050
+    title: Multiplying terms with letters
+    check_type: expression_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "3a · 2b = 6ab"
+    expected: {status: verified, equivalent: true}
+    notes: "ab means a times b; it is never a two-letter name."
+
+  - id: VM051
+    title: Confusing 3a with a cubed
+    check_type: expression_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "a + a + a = a³"
+    expected: {status: wrong, equivalent: false}
+    misconception: "Repeated addition (3a) confused with repeated multiplication (a³)."
+
+  - id: VM052
+    title: Squaring a sum term by term
+    check_type: expression_equivalence
+    curriculum_scope: out_of_curriculum_tool_test
+    input: "(a + b)² = a² + b²"
+    expected: {status: wrong, equivalent: false}
+
+  - id: VM053
+    title: Single letter other than x is the unknown
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "5p - 3 = 12"
+    submitted_answer: "p = 3"
+    expected:
+      status: verified
+      solution_set: {kind: finite, values: ["3"]}
+
+  - id: VM054
+    title: Correct value under the wrong letter
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "2t + 1 = 9"
+    submitted_answer: "x = 4"
+    expected:
+      status: verified
+      variable_mismatch: true
+    notes: "Decision 26 Oct 2026: the value counts; the mismatch is reported as a warning field."
+
+  - id: VM055
+    title: Two letters and no unknown given
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "a + 2b = 10"
+    submitted_answer: "a = 4"
+    expected: {status: unverifiable, reason: ambiguous_unknown}
+
+  - id: VM056
+    title: Two letters with the unknown given
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "a + 2b = 10"
+    variable: "a"
+    submitted_answer: "a = 10 - 2b"
+    expected: {status: verified}
+
+  - id: VM057
+    title: Substituting a value into a letter formula
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "w = 4p + 10"
+    substitutions: {p: "3"}
+    submitted_answer: "w = 22"
+    expected: {status: verified, exact_value: "22"}
+
+  - id: VM058
+    title: Reading 4p with p = 3 as 43
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "w = 4p + 10"
+    substitutions: {p: "3"}
+    submitted_answer: "w = 53"
+    expected: {status: wrong, exact_value: "22"}
+    misconception: "4p with p = 3 read as the number 43 instead of 4 × 3."
+
+  - id: VM059
+    title: Rewriting a formula for the other letter
+    check_type: formula_rewrite
+    curriculum_scope: vwo1_candidate
+    input: "w = 4p + 10"
+    submitted_answer: "p = (w - 10) / 4"
+    expected: {status: verified}
+
+  - id: VM060
+    title: Wrong order of undoing operations
+    check_type: formula_rewrite
+    curriculum_scope: vwo1_candidate
+    input: "w = 4p + 10"
+    submitted_answer: "p = w / 4 - 10"
+    expected: {status: wrong}
+    misconception: "Divided by 4 before subtracting 10."
+
+  - id: VM061
+    title: Word formula is not supported yet
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "kosten = 3 × aantal + 5"
+    substitutions: {aantal: "4"}
+    submitted_answer: "kosten = 17"
+    expected: {status: unverifiable, reason: word_variables_not_supported}
+
+  - id: VM062
+    title: Letter in the denominator is not supported yet
+    check_type: formula_rewrite
+    curriculum_scope: vwo1_candidate
+    input: "v = s / t"
+    submitted_answer: "s = v · t"
+    expected: {status: unverifiable, reason: variable_denominator_unsupported}
+    notes: "Planned later: accept with the condition t ≠ 0."
+
+  - id: VM063
+    title: Reserved letter e
+    check_type: equation_solution
+    curriculum_scope: tool_boundary_test
+    input: "e + 2 = 5"
+    submitted_answer: "e = 3"
+    expected: {status: unverifiable, reason: reserved_symbol}
+
+  - id: VM064
+    title: Capital letter and decimal comma in a formula
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "K = 2,5a + 15"
+    substitutions: {a: "4"}
+    submitted_answer: "K = 25"
+    expected: {status: verified, exact_value: "25"}
+    notes: "Letters are case-sensitive: K and k are different variables."
