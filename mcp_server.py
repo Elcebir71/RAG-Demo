@@ -33,6 +33,7 @@ CheckType = Literal[
     "statistics",
     "scientific_notation",
     "number_theory",
+    "counting",
 ]
 
 
@@ -134,6 +135,14 @@ def verify_math_tool(
         common_divisor_not_greatest, product_instead_of_kgv,
         common_multiple_not_least, factor_not_prime; missing_divisors lists
         divisors that were left out.
+      - counting: input states order and replacement, a colon, then n and k:
+        "met volgorde, zonder terugleggen: 10, 3" (= 720),
+        "met volgorde, met terugleggen: 10, 4" (= 10000),
+        "zonder volgorde, zonder terugleggen: 5, 2" (= 10). Decide yourself
+        from the task whether order matters and items go back; without both
+        the tool returns ambiguous_counting. The answer may be a calculation
+        ("10 · 9 · 8", "4!"). Misconceptions: with_replacement_used,
+        without_replacement_used, order_ignored, order_counted.
 
     Percentages elsewhere: 25% = 25/100, "25% van 80" = 20. "80 + 15%" is
     ambiguous (calculator 92, algebra 80,15) and returns ambiguous_percentage:
@@ -161,7 +170,8 @@ def verify_math_tool(
     (assumed_positive), and misconception forgot_square_root means the student
     gave c² instead of c.
 
-    Superscript exponents work everywhere: 10⁴, 10⁻³, x⁴.
+    Superscript exponents work everywhere: 10⁴, 10⁻³, x⁴. So do n! (5!,
+    10!/7!) and combinations: "10 nCr 3" or "10 boven 3".
 
     Notation: decimal comma (1,5), mixed numbers (1 3/4), ':' for division,
     '×' or '·' for multiplication. ':' and '/' are read strictly from left

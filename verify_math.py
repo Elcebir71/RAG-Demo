@@ -18,7 +18,8 @@ Scope:
 - function notation: f(x) = ... with a value f(-2) or an equation f(x) = g(x);
 - statistics of a list: gemiddelde, mediaan, modus, spreidingsbreedte;
 - scientific notation (a · 10^n with 1 ≤ |a| < 10) and superscript exponents;
-- divisors, multiples and primes: ggd, kgv, priemfactoren, delers, priemgetal.
+- divisors, multiples and primes: ggd, kgv, priemfactoren, delers, priemgetal;
+- counting: n!, n nCr k ('n boven k'), and choosing with or without order and replacement.
 
 This is a verification aid, not a proof of pedagogical correctness or of the
 semantic modelling of a word problem. See README.md for the limitations.
@@ -68,7 +69,7 @@ _LETTER_RUN_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]{3,}")
 # Dutch prose is classified separately as a semantic formalisation task.
 # Quotes, underscores and other executable-looking syntax are rejected before
 # the parser is invoked.
-_ALLOWED_CHARS = re.compile(r"^[0-9A-Za-zπ√%+\-−–—*/:×·()^⁰¹²³⁴⁵⁶⁷⁸⁹⁻=,\.\s]*$")
+_ALLOWED_CHARS = re.compile(r"^[0-9A-Za-zπ√%!+\-−–—*/:×·()^⁰¹²³⁴⁵⁶⁷⁸⁹⁻=,\.\s]*$")
 # Superscript exponents (10⁴, 10⁻³, x⁴) are rewritten as ^(...) before tokenizing.
 _SUPERSCRIPT_RE = re.compile(r"⁻?[⁰¹²³⁴⁵⁶⁷⁸⁹]+")
 _SUPERSCRIPT_IN = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻", "0123456789-")
@@ -76,7 +77,10 @@ _SUPERSCRIPT_IN = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻", "0123456789-")
 
 def _expand_superscripts(text: str) -> str:
     return _SUPERSCRIPT_RE.sub(lambda match: "^(" + match.group(0).translate(_SUPERSCRIPT_IN) + ")", text)
-_SUSPICIOUS_CHARS = set("_'\"[]{}!@#$&`\\;")
+_SUSPICIOUS_CHARS = set("_'\"[]{}@#$&`\\;")
+# '10 boven 3' (Dutch school notation) is read as the calculator form 10 nCr 3.
+_BOVEN_RE = re.compile(r"(?<=[\d)])\s*\bboven\b\s*(?=[\d(])", re.IGNORECASE)
+_ALLOWED_WORDS = {"nCr"}
 # 'p% van q' is the only place where the word 'van' is allowed: it means p% · q.
 _PERCENT_OF_RE = re.compile(r"%\s*van\b", re.IGNORECASE)
 # 80 + 15% means 92 on a calculator but 80,15 in algebra: never guess.
@@ -87,8 +91,8 @@ _AMBIGUOUS_PERCENT_RE = re.compile(
 
 
 def _normalize_percent_phrases(text: str) -> str:
-    """Turn '25% van 80' into '25% · 80' before any other check."""
-    return _PERCENT_OF_RE.sub("% ·", text)
+    """Turn '25% van 80' into '25% · 80' and '10 boven 3' into '10 nCr 3' before any other check."""
+    return _BOVEN_RE.sub(" nCr ", _PERCENT_OF_RE.sub("% ·", text))
 _WORD_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]+")
 _MIXED_RE = re.compile(r"\d+\s+\d+\s*/\s*\d+")
 _NUMBER_RE = re.compile(r"(?:\d+[,.]\d+|\d+)")
@@ -132,6 +136,9 @@ _REASON_NL = {
     "invalid_inequality": "Voer één ongelijkheid in met <, >, ≤ of ≥, of een dubbele ongelijkheid zoals -4 < 2x + 2 ≤ 8.",
     "invalid_system": "Voer een stelsel in als twee vergelijkingen, gescheiden door ';' of een nieuwe regel, bijvoorbeeld 2x + y = 7; x - y = 2.",
     "invalid_function": "Geef eerst de functie(s), bijvoorbeeld f(x) = 2x + 1, en daarna de opdracht, gescheiden door ';': f(3) of f(x) = 7. Gebruik alleen functies die gedefinieerd zijn.",
+    "ambiguous_counting": "Geef aan of de volgorde belangrijk is (met of zonder volgorde) en of er wordt teruggelegd (met of zonder terugleggen); de tool kiest dat niet zelf.",
+    "invalid_counting_input": "Geef bijvoorbeeld 'met volgorde, zonder terugleggen: 10, 3': eerst het aantal mogelijkheden, dan het aantal keuzes. Zonder terugleggen kun je niet meer kiezen dan er zijn.",
+    "unsupported_counting": "Zonder volgorde en met terugleggen wordt niet ondersteund.",
     "unsupported_number_task": "Deze opdracht wordt niet ondersteund; kies ggd, kgv, priemfactoren, delers of priemgetal.",
     "invalid_number_input": "Geef de opdracht en hele positieve getallen, bijvoorbeeld 'ggd: 12, 18' of 'priemfactoren: 360'.",
     "unsupported_statistic": "Deze statistische maat wordt (nog) niet ondersteund; kies gemiddelde, mediaan, modus of spreidingsbreedte.",
@@ -185,7 +192,7 @@ def _preflight(text: Any) -> tuple[bool, str | None]:
     if _AMBIGUOUS_PERCENT_RE.search(text):
         return False, "ambiguous_percentage"
 
-    words = _LETTER_RUN_RE.findall(text)
+    words = [word for word in _LETTER_RUN_RE.findall(text) if word not in _ALLOWED_WORDS]
     if words:
         # A compact formula with a few multi-letter names is a woordformule;
         # anything else with words is prose that a human/model must first turn
@@ -237,6 +244,12 @@ def _tokenize(text: str) -> list[_Token]:
 
         if char == "π":
             tokens.append(_Token("CONST", "pi", pos, pos + 1))
+            pos += 1
+        elif text.startswith("nCr", pos):
+            tokens.append(_Token("OP", "nCr", pos, pos + 3))
+            pos += 3
+        elif char == "!":
+            tokens.append(_Token("FACT", char, pos, pos + 1))
             pos += 1
         elif char.isascii() and char.isalpha():
             if char in _RESERVED_LETTERS:
@@ -354,10 +367,23 @@ class _Parser:
 
     def _parse_power(self) -> sp.Expr:
         result = self._parse_power_core()
-        # Postfix percent binds like a power: 25% = 25/100, and 100 : 25% = 400.
-        while (tok := self._peek()) is not None and tok.kind == "PCT":
+        # Postfix percent and factorial bind like a power: 25% = 25/100,
+        # 100 : 25% = 400, 2 · 3! = 12.
+        while (tok := self._peek()) is not None and tok.kind in ("PCT", "FACT"):
             self._take()
-            result = sp.Mul(result, sp.Rational(1, 100), evaluate=True)
+            if tok.kind == "PCT":
+                result = sp.Mul(result, sp.Rational(1, 100), evaluate=True)
+            else:
+                if not (result.is_Integer and 0 <= result <= 170):
+                    raise _MathInputError("unsupported_math_form")
+                result = sp.factorial(result)
+        # n nCr k (also written 'n boven k'): number of combinations.
+        while (tok := self._peek()) is not None and tok.kind == "OP" and tok.value == "nCr":
+            self._take()
+            k = self._parse_power()
+            if not (result.is_Integer and k.is_Integer and 0 <= k and 0 <= result <= 1000):
+                raise _MathInputError("unsupported_math_form")
+            result = sp.binomial(result, k)
         return result
 
     def _parse_root(self) -> sp.Expr:
@@ -2622,6 +2648,97 @@ def _verify_number_theory(input_value: str, submitted_answer: str | None) -> dic
     return _result("wrong", check_type, input_value, **fields)
 
 
+# --- Counting: order and replacement ------------------------------------------
+MAX_COUNTING_N = 1000
+MAX_COUNTING_K = 100
+
+
+def _counting_spec(spec: str) -> tuple[bool, bool]:
+    """(ordered, with_replacement) from Dutch words; never guessed."""
+    text = " ".join(spec.casefold().split())
+    if "zonder volgorde" in text or "volgorde niet belangrijk" in text or "volgorde is niet belangrijk" in text:
+        ordered: bool | None = False
+    elif "met volgorde" in text or "volgorde belangrijk" in text or "volgorde is belangrijk" in text:
+        ordered = True
+    else:
+        ordered = None
+    if "zonder terugleggen" in text:
+        replacement: bool | None = False
+    elif "met terugleggen" in text:
+        replacement = True
+    else:
+        replacement = None
+    if ordered is None or replacement is None:
+        raise _MathInputError("ambiguous_counting")
+    return ordered, replacement
+
+
+def _verify_counting(input_value: str, submitted_answer: str | None) -> dict[str, Any]:
+    check_type = "counting"
+    try:
+        if not isinstance(input_value, str) or ":" not in input_value or len(input_value) > MAX_INPUT_LENGTH:
+            raise _MathInputError("invalid_counting_input")
+        spec, numbers_text = input_value.rsplit(":", 1)
+        ordered, replacement = _counting_spec(spec)
+        if not ordered and replacement:
+            # Unordered with replacement (n + k - 1 boven k) is not school material.
+            raise _MathInputError("unsupported_counting")
+        numbers = _whole_numbers(numbers_text)
+        if len(numbers) != 2:
+            raise _MathInputError("invalid_counting_input")
+        n, k = numbers
+        if n < 1 or n > MAX_COUNTING_N or k > MAX_COUNTING_K or (not replacement and k > n):
+            raise _MathInputError("invalid_counting_input")
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc)
+
+    ordered_with = sp.Integer(n) ** k
+    ordered_without = sp.factorial(n) / sp.factorial(n - k) if k <= n else None
+    unordered_without = sp.binomial(n, k) if k <= n else None
+    if ordered and replacement:
+        exact, formula = ordered_with, f"{n}^{k}"
+    elif ordered:
+        exact, formula = ordered_without, f"{n}!/({n} - {k})!"
+    else:
+        exact, formula = unordered_without, f"{n} boven {k}"
+    fields: dict[str, Any] = {"exact_value": _serialize_exact(exact), "formula": formula, "parser_invoked": True}
+
+    if submitted_answer is None or not str(submitted_answer).strip():
+        return _result("unverifiable", check_type, input_value, **fields, reason="no_claim_to_check",
+                       explanation_nl=f"{_REASON_NL['no_claim_to_check']} Het aantal is {formula} = {fields['exact_value']}.")
+    fields["submitted_answer"] = submitted_answer
+    try:
+        answer = _numeric_value(submitted_answer)
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc, parser_invoked=True)
+
+    if sp.simplify(answer - exact) == 0:
+        fields["explanation_nl"] = f"Het antwoord klopt: {formula} = {fields['exact_value']}."
+        return _result("verified", check_type, input_value, **fields)
+
+    candidates: list[tuple[str, sp.Expr | None, str]] = []
+    if ordered and not replacement:
+        candidates = [("with_replacement_used", ordered_with,
+                       "Zo tel je met terugleggen; hier kan elk ding maar één keer gekozen worden."),
+                      ("order_ignored", unordered_without,
+                       "Zo tel je zonder volgorde; hier is de volgorde wel belangrijk.")]
+    elif ordered and replacement:
+        candidates = [("without_replacement_used", ordered_without,
+                       "Zo tel je zonder terugleggen; hier mag elke keuze opnieuw gekozen worden.")]
+    else:
+        candidates = [("order_counted", ordered_without,
+                       "Zo tel je met volgorde; hier is de volgorde niet belangrijk, dus deel nog door k!."),
+                      ("with_replacement_used", ordered_with,
+                       "Zo tel je met volgorde en met terugleggen; hier geen van beide.")]
+    for name, value, explanation in candidates:
+        if value is not None and value != exact and sp.simplify(answer - value) == 0:
+            fields["misconception"] = name
+            fields["explanation_nl"] = f"{explanation} Juist is {formula} = {fields['exact_value']}."
+            return _result("wrong", check_type, input_value, **fields)
+    fields["explanation_nl"] = f"Het antwoord klopt niet. Juist is {formula} = {fields['exact_value']}."
+    return _result("wrong", check_type, input_value, **fields)
+
+
 def verify_math(
     check_type: str,
     input: str = "",
@@ -2637,7 +2754,7 @@ def verify_math(
         check_type: one of arithmetic, answer_equivalence, expression_equivalence,
             equation_solution, step_validation, formula_substitution, formula_rewrite,
             unit_conversion, percentage_change, inequality_solution, system_solution,
-            function_notation, statistics, scientific_notation, number_theory.
+            function_notation, statistics, scientific_notation, number_theory, counting.
         input: expression, equation or quantity; not used to infer a word problem's meaning.
         submitted_answer: the student's answer to compare, exactly as written.
         steps: explicit equation steps for step_validation. When omitted, an
@@ -2655,7 +2772,7 @@ def verify_math(
     allowed_types = {"arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
                      "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
                      "percentage_change", "inequality_solution", "system_solution", "function_notation",
-                     "statistics", "scientific_notation", "number_theory"}
+                     "statistics", "scientific_notation", "number_theory", "counting"}
     if check_type not in allowed_types:
         return _unverifiable(str(check_type), input, _MathInputError("unsupported_math_form"))
     if not isinstance(input, str):
@@ -2689,6 +2806,8 @@ def verify_math(
         return _verify_scientific_notation(input, submitted_answer, task_instruction)
     if check_type == "number_theory":
         return _verify_number_theory(input, submitted_answer)
+    if check_type == "counting":
+        return _verify_counting(input, submitted_answer)
     return _verify_steps(input, steps, variable)
 
 
@@ -2702,7 +2821,7 @@ if __name__ == "__main__":
                                             "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
                                             "percentage_change", "inequality_solution", "system_solution",
                                             "function_notation", "statistics", "scientific_notation",
-                                            "number_theory"])
+                                            "number_theory", "counting"])
     cli.add_argument("input", help="Expression, equation, quantity, or arrow-delimited steps")
     cli.add_argument("--answer")
     cli.add_argument("--instruction")

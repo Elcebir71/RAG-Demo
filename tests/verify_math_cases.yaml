@@ -23,6 +23,7 @@ conventions:
     - statistics              # "gemiddelde: 4, 7, 7, 9, 3"; also mediaan, modus, spreidingsbreedte
     - scientific_notation     # value or calculation; the answer must be a · 10^n with 1 ≤ |a| < 10
     - number_theory           # "ggd: 12, 18", "kgv: 4, 6", "priemfactoren: 360", "delers: 12", "priemgetal: 91"
+    - counting                # "met volgorde, zonder terugleggen: 10, 3"; order and replacement must both be stated
     - percentage_change       # percentage increase/decrease, input "old -> new", answer like "25%", "-20%" or "20% afname"
   inequalities: >-
     Signs <, >, ≤, ≥ (also <= and >=). One letter, linear for now; a double inequality like
@@ -88,6 +89,14 @@ conventions:
     of divisors ("1, 2, 3, 4, 6, 12"), or ja / nee for priemgetal (1 is not a prime). Misconceptions:
     confused_ggd_kgv, common_divisor_not_greatest, product_instead_of_kgv, factor_not_prime (the product
     is right but a factor is not prime). missing_divisors lists divisors that were left out.
+  counting: >-
+    n! (faculteit) and n nCr k / "n boven k" (combinations) are read in every check type; n! needs a whole
+    number from 0 to 170. counting input: whether order matters ("met volgorde" / "zonder volgorde") and
+    whether items go back ("met terugleggen" / "zonder terugleggen"), a colon, then n (choices) and k
+    (picks). met volgorde + met terugleggen = n^k; met volgorde + zonder terugleggen = n!/(n-k)!;
+    zonder volgorde + zonder terugleggen = n boven k. The tool never guesses whether order matters:
+    without it the result is ambiguous_counting. The answer may be a number or a calculation (10 · 9 · 8).
+    Misconceptions: with_replacement_used, without_replacement_used, order_ignored, order_counted.
   roots: >-
     √ applies to the next number, letter or bracket: √12 + 1 is (√12) + 1, √(x + 1) needs brackets.
     A root form is simplified when no square factor is left under the root (2√3, not √12) and no
@@ -2308,3 +2317,155 @@ cases:
     curriculum_scope: vwo1_candidate
     input: "ggd: 12, 18"
     expected: {status: unverifiable, reason: no_claim_to_check, exact_value: "6"}
+
+  # --- Counting: factorial, combinations, order and replacement (tests written before the code, 27 Oct 2026) ---
+  - id: VM267
+    title: Factorial
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "5!"
+    submitted_answer: "120"
+    expected: {status: verified, exact_value: "120"}
+
+  - id: VM268
+    title: Quotient of factorials
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "10!/7!"
+    submitted_answer: "720"
+    expected: {status: verified}
+
+  - id: VM269
+    title: Combinations with nCr
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "10 nCr 3"
+    submitted_answer: "120"
+    expected: {status: verified}
+
+  - id: VM270
+    title: Combinations written as boven
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "10 boven 3"
+    submitted_answer: "120"
+    expected: {status: verified}
+
+  - id: VM271
+    title: Factorial of a decimal number
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "3,5!"
+    submitted_answer: "11,6"
+    expected: {status: unverifiable, reason: unsupported_math_form}
+
+  - id: VM272
+    title: 0! is 1
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "0!"
+    submitted_answer: "1"
+    expected: {status: verified}
+
+  - id: VM273
+    title: Factorial binds before multiplication
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "2 · 3!"
+    submitted_answer: "12"
+    expected: {status: verified}
+
+  - id: VM274
+    title: Ordered, without replacement
+    check_type: counting
+    curriculum_scope: vwo1_candidate
+    input: "met volgorde, zonder terugleggen: 10, 3"
+    submitted_answer: "720"
+    expected: {status: verified, exact_value: "720"}
+
+  - id: VM275
+    title: Answer written as a product
+    check_type: counting
+    curriculum_scope: vwo1_candidate
+    input: "met volgorde, zonder terugleggen: 10, 3"
+    submitted_answer: "10 · 9 · 8"
+    expected: {status: verified}
+
+  - id: VM276
+    title: With replacement used by mistake
+    check_type: counting
+    curriculum_scope: vwo1_candidate
+    input: "met volgorde, zonder terugleggen: 10, 3"
+    submitted_answer: "1000"
+    expected: {status: wrong, misconception: with_replacement_used}
+
+  - id: VM277
+    title: Order ignored by mistake
+    check_type: counting
+    curriculum_scope: vwo1_candidate
+    input: "met volgorde, zonder terugleggen: 10, 3"
+    submitted_answer: "120"
+    expected: {status: wrong, misconception: order_ignored}
+
+  - id: VM278
+    title: Ordered, with replacement (pin code)
+    check_type: counting
+    curriculum_scope: vwo1_candidate
+    input: "met volgorde, met terugleggen: 10, 4"
+    submitted_answer: "10000"
+    expected: {status: verified}
+
+  - id: VM279
+    title: Without replacement used by mistake
+    check_type: counting
+    curriculum_scope: vwo1_candidate
+    input: "met volgorde, met terugleggen: 10, 4"
+    submitted_answer: "5040"
+    expected: {status: wrong, misconception: without_replacement_used}
+
+  - id: VM280
+    title: Unordered, without replacement
+    check_type: counting
+    curriculum_scope: vwo1_candidate
+    input: "zonder volgorde, zonder terugleggen: 5, 2"
+    submitted_answer: "10"
+    expected: {status: verified}
+
+  - id: VM281
+    title: Order counted by mistake
+    check_type: counting
+    curriculum_scope: vwo1_candidate
+    input: "zonder volgorde, zonder terugleggen: 5, 2"
+    submitted_answer: "20"
+    expected: {status: wrong, misconception: order_counted}
+
+  - id: VM282
+    title: More picks than items without replacement
+    check_type: counting
+    curriculum_scope: vwo1_candidate
+    input: "met volgorde, zonder terugleggen: 3, 5"
+    submitted_answer: "0"
+    expected: {status: unverifiable, reason: invalid_counting_input}
+
+  - id: VM283
+    title: Order not stated
+    check_type: counting
+    curriculum_scope: vwo1_candidate
+    input: "zonder terugleggen: 10, 3"
+    submitted_answer: "720"
+    expected: {status: unverifiable, reason: ambiguous_counting}
+
+  - id: VM284
+    title: No answer means nothing was checked
+    check_type: counting
+    curriculum_scope: vwo1_candidate
+    input: "met volgorde, zonder terugleggen: 10, 3"
+    expected: {status: unverifiable, reason: no_claim_to_check, exact_value: "720"}
+
+  - id: VM285
+    title: All items in a row
+    check_type: counting
+    curriculum_scope: vwo1_candidate
+    input: "met volgorde, zonder terugleggen: 4, 4"
+    submitted_answer: "4!"
+    expected: {status: verified}

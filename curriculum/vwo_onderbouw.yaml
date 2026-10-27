@@ -305,7 +305,7 @@ topics:
     hv: true
     typical_years: [1, 2]
     evidence: ["KERN 1B W2", "KERN 2A 4.1-4.2, 4.5"]
-    verify_math: {status: planned, note: "Needs n! and combinations in the parser."}
+    verify_math: {status: partial, check_types: [counting, arithmetic], tests: [VM267, VM269, VM270, VM274, VM276, VM277, VM279, VM281, VM283], note: "Counting with or without order and replacement, n! and 'n boven k'. Probabilities are checked as arithmetic (3/8 · 2/7); drawing the tree or grid diagram itself is out of scope."}
 
   # --- Kerndoel 12: patronen en verbanden ---
   - id: T23
