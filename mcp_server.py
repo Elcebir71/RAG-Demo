@@ -28,6 +28,21 @@ CheckType = Literal[
     "unit_conversion",
     "percentage_change",
     "inequality_solution",
+    "system_solution",
+    "function_notation",
+    "statistics",
+    "scientific_notation",
+    "number_theory",
+    "counting",
+    "angle_sum",
+    "shape_formula",
+    "scale_factor",
+    "trig_ratio",
+    "sine_rule",
+    "cosine_rule",
+    "point_distance",
+    "midpoint",
+    "pythagoras",
 ]
 
 
@@ -60,6 +75,9 @@ def verify_math_tool(
         e.g. "-2(x - 3) = -2x + 6" or "2(a + b) = 2a + 2b".
       - equation_solution: input is an equation, submitted_answer is the
         claimed solution, e.g. "x = 4", "geen oplossing" or "alle getallen".
+        abc-formule answers: "x = (-3 ± √13)/2". misconception 'sign_of_b':
+        b used instead of -b; 'divided_by_2_not_2a': divided by 2 instead of
+        2a. The discriminant: formula_substitution with "D = b² - 4ac".
       - step_validation: steps is the list of equation lines, the original
         equation first, e.g. ["3x - 5 = 7", "3x = 12", "x = 4"].
       - formula_substitution: input is a letter formula, substitutions the
@@ -89,13 +107,86 @@ def verify_math_tool(
         negative coefficient without flipping); 'wrong_bound_type': < and ≤
         mixed up. Interval notation (⟨←, 3⟩) returns
         interval_notation_not_supported: ask for the x < 3 form.
+      - system_solution: input is two linear equations separated by ';' or
+        a new line, e.g. "2x + y = 7; x - y = 2"; submitted_answer names both
+        letters, e.g. "x = 3, y = 1", "x = 3 en y = 1", "geen oplossing" or
+        "oneindig veel oplossingen". A bare pair "(3, 1)" is not accepted:
+        rewrite it with the letters only if the student's order is certain.
+        misconception 'values_swapped': right numbers, wrong letters;
+        'missing_variable': one letter missing; satisfied_equations lists
+        the equations (1, 2) the answer does fit.
+      - function_notation: input is the definition(s) and then the task,
+        separated by ';', e.g. "f(x) = 2x² - 3x + 1; f(-2)" (answer "15" or
+        "f(-2) = 15"), "f(x) = 3x - 4; f(x) = 8" (answer "x = 4") or
+        "f(x) = 2x + 1; g(x) = -x + 7; f(x) = g(x)". misconception
+        'negative_base_not_in_brackets': the student computed -2² instead of
+        (-2)²; argument_mismatch: the answer names another argument, e.g.
+        f(2) instead of f(-2). Use only this check type for f(x) notation:
+        elsewhere a(b + c) means a times (b + c).
+      - statistics: input is the measure, a colon and the data, e.g.
+        "gemiddelde: 4, 7, 7, 9, 3", "mediaan: 1,5; 2,5; 3,5". Measures:
+        gemiddelde, mediaan, modus, spreidingsbreedte. Separate values with
+        ';' or with a comma plus a space (a comma between digits is a
+        decimal comma). Modus answers: "7", "5 en 8" or "geen modus".
+        Misconceptions: median_not_sorted, median_even_count,
+        confused_with_median, confused_with_mean.
+      - scientific_notation: input is a number or a calculation, e.g. "45000"
+        or "(4 · 10³) × (5 · 10²)"; submitted_answer must be a · 10^n with
+        1 ≤ |a| < 10, e.g. "4,5 · 10⁴" or "4,5 × 10^4". Misconceptions:
+        not_normalized (45 · 10³), not_scientific_notation (45000),
+        calculator_notation (4,5E4), exponent_off_by_one, exponent_sign_wrong.
+        value_correct says whether the number itself is right;
+        scientific_form gives the expected answer.
+      - number_theory: input is the task, a colon and whole numbers:
+        "ggd: 12, 18", "kgv: 4, 6", "priemfactoren: 360", "delers: 12",
+        "priemgetal: 91". Answers: "6", "2³ · 3² · 5" (or 2 · 2 · 2 · ...),
+        "1, 2, 3, 4, 6, 12", "ja" / "nee". Misconceptions: confused_ggd_kgv,
+        common_divisor_not_greatest, product_instead_of_kgv,
+        common_multiple_not_least, factor_not_prime; missing_divisors lists
+        divisors that were left out.
+      - counting: input states order and replacement, a colon, then n and k:
+        "met volgorde, zonder terugleggen: 10, 3" (= 720),
+        "met volgorde, met terugleggen: 10, 4" (= 10000),
+        "zonder volgorde, zonder terugleggen: 5, 2" (= 10). Decide yourself
+        from the task whether order matters and items go back; without both
+        the tool returns ambiguous_counting. The answer may be a calculation
+        ("10 · 9 · 8", "4!"). Misconceptions: with_replacement_used,
+        without_replacement_used, order_ignored, order_counted.
+
+    Geometry (the tool never reads a figure: you give the shape, the
+    relation and the sizes; sizes go in 'substitutions'):
+      - angle_sum: "driehoek: 35°, 72°" → answer "73°"; also vierhoek,
+        gestrekte hoek, volle hoek. Every angle needs °.
+      - shape_formula: "oppervlakte cirkel", substitutions {"r": "3"} →
+        "9π". Quantities omtrek, oppervlakte, inhoud; shapes rechthoek,
+        vierkant, driehoek, parallellogram, trapezium, cirkel, balk, kubus,
+        cilinder, prisma, piramide, kegel, bol. Units optional ("8 cm"); the
+        answer unit must match (cm → cm²).
+      - scale_factor: "oppervlakte", {"k": "3", "origineel": "4"} → "36".
+      - trig_ratio: "sin(A) = overstaande / schuine zijde",
+        {"A": "30°", "schuine zijde": "10"} → "5"; or the sides to find
+        the angle. Degrees only.
+      - sine_rule: "a / sin(A) = b / sin(B)", cosine_rule:
+        "a² = b² + c² - 2bc · cos(A)", with three known values. The
+        ambiguous case returns ambiguous_triangle: tell the teacher.
+      - point_distance / midpoint: "A(1, 2), B(4, 6)"; with decimal
+        commas use ';' inside a point: "A(1,5; 2)".
+      - pythagoras: "rechthoekige driehoek ABC: hoek B = 90°", two sides in
+        substitutions, e.g. {"AB": "6", "BC": "8"}; answer "AC = 10". The
+        right angle you give decides the hypotenuse; the result echoes it
+        (hypotenuse, target_side) so the teacher can check your reading of
+        the figure. Misconceptions: wrong_side (right value, wrong side),
+        pythagoras_added_instead_of_subtracted, forgot_square_root.
 
     Percentages elsewhere: 25% = 25/100, "25% van 80" = 20. "80 + 15%" is
     ambiguous (calculator 92, algebra 80,15) and returns ambiguous_percentage:
     ask which one is meant. Rounding instructions ("Rond af op 2 decimalen",
-    "Rond af op 1 decimaal") work for arithmetic, answer_equivalence,
-    equation_solution, formula_substitution, unit_conversion and
-    percentage_change.
+    "Rond af op 1 decimaal", "Rond af op 3 significante cijfers") work for
+    every check type that compares a number. With significant figures the
+    result reports significant_figures instead of decimal_places. When
+    rounding is asked, an unrounded exact answer is 'wrong' with
+    misconception not_rounded and value_correct true: tell the teacher the
+    value itself is right.
 
     Letters: any single letter can be a variable (case-sensitive); 'ab' means
     a times b. e and i are variables too, but any power of e (e², e^x) and
@@ -116,8 +207,15 @@ def verify_math_tool(
     (assumed_positive), and misconception forgot_square_root means the student
     gave c² instead of c.
 
+    Superscript exponents work everywhere: 10⁴, 10⁻³, x⁴. So do n! (5!,
+    10!/7!) and combinations: "10 nCr 3" or "10 boven 3".
+
     Notation: decimal comma (1,5), mixed numbers (1 3/4), ':' for division,
-    '×' or '·' for multiplication. A period inside a number (1.000) is
+    '×' or '·' for multiplication. ':' and '/' are read strictly from left
+    to right, also when a fraction follows: "2/3 : 4/5" is ((2/3) : 4) / 5.
+    When a student divides by a fraction, put that fraction in brackets:
+    "2/3 : (4/5)", "(-1/3)² : (2/9)". A euro sign in an answer (€288) is
+    ignored for arithmetic. A period inside a number (1.000) is
     rejected as ambiguous.
 
     task_instruction: optional, e.g. "Rond af op 2 decimalen." Pass it only

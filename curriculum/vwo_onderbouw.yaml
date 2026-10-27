@@ -109,7 +109,7 @@ topics:
       status: partial
       check_types: [arithmetic]
       tests: [VM032]
-      note: "Integer powers and ² ³ work; other superscripts (⁴, ⁵) and rules for powers with letters are not tested yet."
+      note: "Integer powers and all superscript exponents (²–⁹, ⁻) work; identities such as x⁴ · x³ = x⁷ via expression_equivalence (VM245). A check type for the rules for powers step by step is planned."
 
   - id: T04
     topic: "Wortels, wortels herleiden"
@@ -169,10 +169,10 @@ topics:
     evidence: ["M4A me4.1-4.5, me6.1-6.5, me7.3-7.4"]
     method_chapter: "H1 Figuren"
     verify_math:
-      status: partial
-      check_types: [formula_substitution]
-      tests: [VM070]
-      note: "Works when the formula is given (O = πr²). Choosing the right formula from a figure is out of scope; formulas with √ need T04."
+      status: supported
+      check_types: [shape_formula, formula_substitution]
+      tests: [VM070, VM287, GEO018, GEO021, GEO024, GEO027, GEO105]
+      note: "Named formulas for 13 shapes (omtrek, oppervlakte, inhoud) with unit checks. Choosing the shape or the sizes from a figure is out of scope; the caller gives them."
 
   - id: T09
     topic: "Algebraïsche uitdrukkingen herleiden (haakjes wegwerken, gelijksoortige termen)"
@@ -191,7 +191,7 @@ topics:
     hv: true
     typical_years: [2]
     evidence: ["KERN 2A 1.5", "M4A re5.6"]
-    verify_math: {status: planned, note: "3,2 · 10^5 may already parse; 10⁵ with superscript and the notation rule itself (1 ≤ a < 10) are not checked."}
+    verify_math: {status: supported, check_types: [scientific_notation, arithmetic], tests: [VM231, VM233, VM234, VM235, VM236, VM237, VM239, VM241, VM243], note: "Value and form a · 10^n with 1 ≤ |a| < 10; superscript exponents; significant figures."}
 
   - id: T11
     topic: "Meetnauwkeurigheid, significante cijfers"
@@ -199,7 +199,7 @@ topics:
     kerndoel_2007: [OB-23]
     hv: true
     typical_years: [2, 3]
-    verify_math: {status: planned, note: "Rounding to decimals works; rounding to significant digits returns rounding_instruction_not_supported."}
+    verify_math: {status: supported, tests: [VM219, VM220, VM221, VM223, VM224], note: "Rounding to decimals and to significant figures (Rond af op 3 significante cijfers), half up, in every check type. Judging the precision of a measurement itself is not checked."}
 
   # --- Kerndoel 10B: vergelijkingen ---
   - id: T12
@@ -249,7 +249,7 @@ topics:
     hv: true
     typical_years: [3]
     evidence: ["Not in KERN 1A-2B; voorkennis in G&R vwo wiskunde B deel 1, H4"]
-    verify_math: {status: planned, note: "Needs a new check type for two equations and an answer like x = 2, y = 3."}
+    verify_math: {status: supported, check_types: [system_solution], tests: [VM155, VM157, VM158, VM161, VM162, VM163], note: "Two linear equations in two letters; answers like x = 3, y = 1. Non-linear systems planned."}
 
   - id: T17
     topic: "Ongelijkheden (eerst lineair)"
@@ -268,7 +268,7 @@ topics:
     hv: false
     typical_years: [1, 2]
     evidence: ["KERN 1A 4.1, 4.4-4.5", "M4A if2.2-2.3"]
-    verify_math: {status: planned, note: "Needs a check type that takes a list of numbers."}
+    verify_math: {status: supported, check_types: [statistics], tests: [VM201, VM205, VM206, VM207, VM208, VM210, VM212, VM213, VM214], note: "Gemiddelde, mediaan, modus (also two modi or geen modus) and spreidingsbreedte of a list. Frequency tables are planned."}
 
   - id: T19
     topic: "Kwartielen, interkwartielafstand, boxplot; datasets vergelijken"
@@ -305,7 +305,7 @@ topics:
     hv: true
     typical_years: [1, 2]
     evidence: ["KERN 1B W2", "KERN 2A 4.1-4.2, 4.5"]
-    verify_math: {status: planned, note: "Needs n! and combinations in the parser."}
+    verify_math: {status: partial, check_types: [counting, arithmetic], tests: [VM267, VM269, VM270, VM274, VM276, VM277, VM279, VM281, VM283], note: "Counting with or without order and replacement, n! and 'n boven k'. Probabilities are checked as arithmetic (3/8 · 2/7); drawing the tree or grid diagram itself is out of scope."}
 
   # --- Kerndoel 12: patronen en verbanden ---
   - id: T23
@@ -367,7 +367,7 @@ topics:
     hv: false
     typical_years: [1, 2]
     evidence: ["KERN 1A 2.4-2.5", "KERN 2B 7.2-7.5 (7.5 VWO)", "M4A me5.1-5.3, me7.6"]
-    verify_math: {status: partial, note: "Only the arithmetic: scale factor k, area × k², volume × k³. Showing similarity from a figure is out of scope."}
+    verify_math: {status: partial, check_types: [scale_factor], tests: [VM291, GEO035, GEO037, GEO039], note: "Scale factor k for length, area (k²) and volume (k³) with misconceptions. Showing similarity from a figure is out of scope."}
 
   - id: T29
     topic: "Hoeken en hoekeigenschappen (hoekensom, overstaande en F/Z-hoeken)"
@@ -377,7 +377,7 @@ topics:
     typical_years: [1]
     method_chapter: "H5 Lijnen en hoeken"
     evidence: ["KERN 1A 2.2", "KERN 1B 7.3-7.4", "M4A me3.1-3.5"]
-    verify_math: {status: planned, note: "Angle sums are plain arithmetic; the ° sign is not read yet. Finding which angles are equal needs the figure."}
+    verify_math: {status: partial, check_types: [angle_sum], tests: [VM286, GEO001, GEO004, GEO008, GEO010], note: "Angle sums of driehoek, vierhoek, gestrekte and volle hoek with °. Which angles are equal (F-, Z-, overstaande hoeken) comes from the figure and is out of scope."}
 
   - id: T30
     topic: "Stelling van Pythagoras (vwo: ook de omgekeerde stelling)"
@@ -390,7 +390,7 @@ topics:
       status: supported
       check_types: [formula_substitution]
       tests: [VM132, VM133, VM134, VM135, VM136]
-      note: "With the formula given (a² + b² = c²); the positive length is taken (assumed_positive). Choosing the hypotenuse from a figure is out of scope."
+      note: "Two ways: the formula given (a² + b² = c², formula_substitution) or a named right angle (pythagoras: 'hoek B = 90°' makes AC the hypotenuse; flags wrong_side and adding instead of subtracting). Reading the right angle from a figure is done by the caller and echoed in the result."
   - id: T31
     topic: "Goniometrische verhoudingen in rechthoekige driehoeken (sin, cos, tan)"
     kerndoel: VO-13A
@@ -398,7 +398,7 @@ topics:
     hv: true
     typical_years: [3]
     evidence: ["Not in KERN 1A-2B; voorkennis in G&R vwo wiskunde B deel 1, H3"]
-    verify_math: {status: planned, note: "Needs sin/cos/tan in degrees and the GR rounding conventions."}
+    verify_math: {status: supported, check_types: [trig_ratio], tests: [VM288, GEO046, GEO050, GEO051, GEO053, GEO096], note: "sin, cos, tan in degrees, also the angle from two sides; rounding only on request; flags sin and cos swapped."}
 
   # --- Kerndoel 14-17: denk-werkwijzen, wiskundetaal, attitude, toepassing ---
   - id: T32
@@ -463,7 +463,7 @@ topics:
     hv: false
     typical_years: [2]
     evidence: ["KERN 2A 1.1"]
-    verify_math: {status: planned, note: "Needs a check type for ggd, kgv and priemfactorontbinding."}
+    verify_math: {status: supported, check_types: [number_theory], tests: [VM249, VM250, VM251, VM253, VM255, VM257, VM260, VM261, VM263], note: "ggd, kgv, priemfactoren, delers and priemgetal (1 is not prime); flags ggd/kgv mixed up, a product instead of the kgv and non-prime factors."}
 
   - id: T39
     topic: "Assenstelsel en coördinaten"
@@ -472,7 +472,7 @@ topics:
     hv: false
     typical_years: [1]
     evidence: ["KERN 1A 3.1", "M4A me1.6"]
-    verify_math: {status: planned, tests: [VM028], note: "(1,5) is rejected today as ambiguous (point or 1,5). Needs a check type where the input says it is a point."}
+    verify_math: {status: supported, check_types: [point_distance, midpoint], tests: [VM028, VM289, VM290, GEO069, GEO076, GEO081, GEO089], note: "Distance and midpoint of two points; with decimal commas a point uses ';' (2,5; 4). A bare (1,5) stays ambiguous."}
 
   - id: T40
     topic: "Exponentiële groei en verval: groeifactor, groeipercentage, exponentiële vergelijkingen"
