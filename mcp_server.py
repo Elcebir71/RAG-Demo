@@ -84,7 +84,8 @@ def verify_math_tool(
     ambiguous (calculator 92, algebra 80,15) and returns ambiguous_percentage:
     ask which one is meant. Rounding instructions ("Rond af op 2 decimalen",
     "Rond af op 1 decimaal") work for arithmetic, answer_equivalence,
-    equation_solution, unit_conversion and percentage_change.
+    equation_solution, formula_substitution, unit_conversion and
+    percentage_change.
 
     Letters: any single letter can be a variable (case-sensitive); 'ab' means
     a times b. e and i are variables too, but any power of e (e², e^x) and
@@ -95,6 +96,15 @@ def verify_math_tool(
     variable_mismatch with value_correct true, tell the teacher the value is
     right but the answer is written under the wrong letter (status is still
     'wrong').
+
+    Roots: √ applies to the next number, letter or bracket (√12, 2√3,
+    √(x + 1)). For root answers the result has is_simplified (2√3 yes, √12
+    no, 1/√2 no): report it separately from the status. √ of a negative
+    number returns not_real. Equations with two solutions: pass the student's
+    answer as written, e.g. "x = √5 of x = -√5" or "x = ±√5". Pythagoras: use
+    formula_substitution with "a² + b² = c²"; the positive length is taken
+    (assumed_positive), and misconception forgot_square_root means the student
+    gave c² instead of c.
 
     Notation: decimal comma (1,5), mixed numbers (1 3/4), ':' for division,
     '×' or '·' for multiplication. A period inside a number (1.000) is

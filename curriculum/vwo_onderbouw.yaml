@@ -118,8 +118,11 @@ topics:
     hv: false
     typical_years: [2]
     evidence: ["KERN 2A 1.3-1.4", "KERN 2B 8.4 (VWO)", "M4A re5.2-5.4"]
-    verify_math: {status: planned, note: "The parser does not read √ yet. Needed for Pythagoras (T30) and quadratic equations (T14)."}
-
+    verify_math:
+      status: supported
+      check_types: [arithmetic, answer_equivalence, expression_equivalence]
+      tests: [VM113, VM114, VM115, VM116, VM117, VM118, VM119, VM120, VM121, VM122, VM123, VM124, VM125, VM126]
+      note: "√ notation, simplified form (is_simplified), conditions such as x + 1 ≥ 0, not_real for √ of a negative number."
   - id: T05
     topic: "Verhoudingen en procenten"
     kerndoel: VO-10A
@@ -227,11 +230,10 @@ topics:
     typical_years: [2]
     evidence: ["KERN 2B 6.3-6.5 (6.5 VWO)", "KERN 2B 8.5 (VWO)", "M4A gr5.3-5.4"]
     verify_math:
-      status: partial
+      status: supported
       check_types: [equation_solution, step_validation]
-      tests: [VM014, VM019]
-      note: "Solution sets with whole and rational roots work; answers with √ (x = √5) and 'x = 2 of x = -3' as one answer are planned."
-
+      tests: [VM014, VM019, VM127, VM128, VM129, VM130, VM131]
+      note: "Both roots in one answer ('x = √5 of x = -√5', 'x = ±√5'); exact or rounded when asked."
   - id: T15
     topic: "Machtsvergelijkingen"
     kerndoel: VO-10B
@@ -384,8 +386,11 @@ topics:
     hv: false
     typical_years: [2]
     evidence: ["KERN 2B 5.1-5.5 (5.5 VWO)", "M4A me7.1-7.2"]
-    verify_math: {status: planned, note: "Needs √ (T04). Then a² + b² = c² works with formula_substitution."}
-
+    verify_math:
+      status: supported
+      check_types: [formula_substitution]
+      tests: [VM132, VM133, VM134, VM135, VM136]
+      note: "With the formula given (a² + b² = c²); the positive length is taken (assumed_positive). Choosing the hypotenuse from a figure is out of scope."
   - id: T31
     topic: "Goniometrische verhoudingen in rechthoekige driehoeken (sin, cos, tan)"
     kerndoel: VO-13A
@@ -450,8 +455,7 @@ topics:
     hv: true
     typical_years: [2]
     evidence: ["KERN 2B 8.5 (VWO)", "M4A gr5.3"]
-    verify_math: {status: partial, check_types: [expression_equivalence, step_validation], note: "x² + 6x + 5 = (x + 3)² - 4 is an identity check; roots with √ need T04."}
-
+    verify_math: {status: supported, check_types: [expression_equivalence, step_validation], note: "x² + 6x + 5 = (x + 3)² - 4 is an identity check; roots with √ in the solutions are supported."}
   - id: T38
     topic: "Veelvouden, delers en priemgetallen"
     kerndoel: VO-10A

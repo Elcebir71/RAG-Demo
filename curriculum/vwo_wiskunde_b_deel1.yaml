@@ -14,15 +14,14 @@ sources:
     note: "Syllabus domain codes are not filled in yet; add them from the official syllabus of the exam year the school uses."
 
 conventions:
-  vwo_year: "Deel 1 of wiskunde B is usually used in vwo 4; confirmed: false until a teacher checks it."
+  typical_year: "Deel 1 of wiskunde B is usually used in vwo 4; the real year comes from the school's own planning."
   verify_math_status: "supported | partial | planned | out_of_scope (same meaning as in vwo_onderbouw.yaml)"
 
 paragraphs:
   # --- H1 Functies en grafieken ---
   - id: B1.0
     title: "Voorkennis: lineaire vergelijkingen en ongelijkheden"
-    vwo_year: 4
-    confirmed: false
+    typical_year: 4
     verify_math: {status: partial, note: "Linear equations supported (T12); inequalities planned (T17)."}
   - id: B1.1
     title: "Lineaire functies"
@@ -69,7 +68,7 @@ paragraphs:
     verify_math: {status: partial, check_types: [formula_substitution], note: "Given formulas work (O = πr²); exact answers with √ need √ support."}
   - id: B3.3
     title: "Rekenen met wortels"
-    verify_math: {status: planned, note: "Top priority: √ in the parser, simplifying (√12 = 2√3) and exact answers."}
+    verify_math: {status: supported, check_types: [arithmetic, answer_equivalence, expression_equivalence], tests: [VM113, VM114, VM117, VM118, VM124], note: "√ notation, simplified form and root conditions."}
   - id: B3.4
     title: "Vergelijkingen in de meetkunde"
     verify_math: {status: partial, check_types: [equation_solution], note: "The equation is checkable once written; setting it up from a figure is out of scope."}

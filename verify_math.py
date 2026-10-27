@@ -62,7 +62,7 @@ _LETTER_RUN_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]{3,}")
 # Dutch prose is classified separately as a semantic formalisation task.
 # Quotes, underscores and other executable-looking syntax are rejected before
 # the parser is invoked.
-_ALLOWED_CHARS = re.compile(r"^[0-9A-Za-zπ%+\-−–—*/:×·()^²³=,\.\s]*$")
+_ALLOWED_CHARS = re.compile(r"^[0-9A-Za-zπ√%+\-−–—*/:×·()^²³=,\.\s]*$")
 _SUSPICIOUS_CHARS = set("_'\"[]{}!@#$&`\\;")
 # 'p% van q' is the only place where the word 'van' is allowed: it means p% · q.
 _PERCENT_OF_RE = re.compile(r"%\s*van\b", re.IGNORECASE)
@@ -112,6 +112,8 @@ _REASON_NL = {
     "invalid_equation": "Voer precies één vergelijking met een gelijkteken in.",
     "invalid_answer": "Het antwoord kon niet als een ondersteunde wiskundige waarde worden gelezen.",
     "rounding_instruction_not_supported": "De afrondingsinstructie wordt niet ondersteund.",
+    "not_real": "De wortel van een negatief getal is geen reëel getal.",
+    "ambiguous_root_notation": "Bij een wortel met een macht erachter (√2²) is niet duidelijk wat bedoeld wordt; gebruik haakjes: √(2²) of (√2)².",
     "ambiguous_percentage": "Een getal plus of min een percentage (zoals 80 + 15%) is dubbelzinnig: 92 op een rekenmachine, 80,15 in de algebra. Schrijf 80 · 1,15 of 80 + 15% van 80.",
     "invalid_percentage_change": "Geef de oude en de nieuwe waarde als 'oud -> nieuw', bijvoorbeeld 80 -> 100, en het antwoord als percentage.",
 }
@@ -222,6 +224,9 @@ def _tokenize(text: str) -> list[_Token]:
         elif char == "%":
             tokens.append(_Token("PCT", char, pos, pos + 1))
             pos += 1
+        elif char == "√":
+            tokens.append(_Token("SQRT", char, pos, pos + 1))
+            pos += 1
         elif char == "(":
             tokens.append(_Token("LPAREN", char, pos, pos + 1))
             pos += 1
@@ -249,6 +254,12 @@ class _Parser:
         self.tokens = _tokenize(text)
         self.index = 0
         self.denominators: list[sp.Expr] = []
+        # Bookkeeping for roots: conditions 'radicand ≥ 0' for letters, the
+        # numbers under a root (None for a fraction) and whether a root ends up
+        # in a denominator. Used for domain conditions and is_simplified.
+        self.root_conditions: list[sp.Expr] = []
+        self.radicands: list[int | None] = []
+        self.root_in_denominator = False
 
     def _peek(self) -> _Token | None:
         return self.tokens[self.index] if self.index < len(self.tokens) else None
@@ -282,7 +293,7 @@ class _Parser:
         # Supports 2x, 2(...), x(...), and (...)(...). It intentionally does
         # not treat adjacency of two numeric tokens as multiplication: that
         # space is reserved for mixed-number notation (e.g. 1 3/4).
-        return token is not None and token.kind in ("VAR", "CONST", "LPAREN")
+        return token is not None and token.kind in ("VAR", "CONST", "LPAREN", "SQRT")
 
     def _parse_term(self) -> sp.Expr:
         result = self._parse_unary()
@@ -290,7 +301,10 @@ class _Parser:
             tok = self._peek()
             if tok is not None and tok.kind == "OP" and tok.value in ("*", "/"):
                 op = self._take().value
+                start = self.index
                 rhs = self._parse_unary()
+                if op == "/" and any(t.kind == "SQRT" for t in self.tokens[start:self.index]):
+                    self.root_in_denominator = True
                 if op == "/":
                     if rhs == 0:
                         raise _MathInputError("division_by_zero")
@@ -324,7 +338,37 @@ class _Parser:
             result = sp.Mul(result, sp.Rational(1, 100), evaluate=True)
         return result
 
+    def _parse_root(self) -> sp.Expr:
+        """√ applies to the next number, letter, constant or bracket: √12 + 1 = (√12) + 1."""
+        self._take()
+        sign = 1
+        nxt = self._peek()
+        if nxt is not None and nxt.kind == "OP" and nxt.value in ("+", "-"):
+            self._take()
+            sign = -1 if nxt.value == "-" else 1
+        operand = self._parse_atom()
+        if sign == -1:
+            operand = -operand
+        if operand.is_number:
+            if operand.is_negative:
+                raise _MathInputError("not_real")
+        elif operand.is_nonnegative is not True:
+            # x² needs no condition; x or x + 1 must be ≥ 0.
+            self.root_conditions.append(operand)
+        if operand.is_Integer:
+            self.radicands.append(int(operand))
+        elif operand.is_Rational:
+            self.radicands.append(None)  # a fraction under the root is not simplified
+        return sp.sqrt(operand)
+
     def _parse_power_core(self) -> sp.Expr:
+        tok = self._peek()
+        if tok is not None and tok.kind == "SQRT":
+            base = self._parse_root()
+            after = self._peek()
+            if after is not None and after.kind == "OP" and after.value == "^":
+                raise _MathInputError("ambiguous_root_notation")
+            return base
         base = self._parse_atom()
         tok = self._peek()
         if tok is not None and tok.kind == "OP" and tok.value == "^":
@@ -379,12 +423,15 @@ class _Parser:
         raise _MathInputError("unsupported_math_form")
 
 
-def _parse_expr(text: str, denominators: list[sp.Expr] | None = None) -> sp.Expr:
+def _parse_expr(text: str, denominators: list[sp.Expr] | None = None,
+                root_conditions: list[sp.Expr] | None = None) -> sp.Expr:
     """Parse an approved expression and optionally retain its domain restrictions."""
     parser = _Parser(text)
     result = parser.parse()
     if denominators is not None:
         denominators.extend(parser.denominators)
+    if root_conditions is not None:
+        root_conditions.extend(parser.root_conditions)
     return result
 
 
@@ -399,7 +446,8 @@ def _safe_parse_expr(text: Any, allow_variable_denominators: bool = False) -> sp
     return value
 
 
-def _parse_equation(text: Any, denominators: list[sp.Expr] | None = None) -> tuple[sp.Expr, sp.Expr]:
+def _parse_equation(text: Any, denominators: list[sp.Expr] | None = None,
+                    root_conditions: list[sp.Expr] | None = None) -> tuple[sp.Expr, sp.Expr]:
     ok, reason = _preflight(text)
     if not ok:
         raise _MathInputError(reason or "disallowed_characters_or_syntax")
@@ -408,8 +456,8 @@ def _parse_equation(text: Any, denominators: list[sp.Expr] | None = None) -> tup
     lhs_text, rhs_text = text.split("=", 1)
     if not lhs_text.strip() or not rhs_text.strip():
         raise _MathInputError("invalid_equation")
-    lhs = _parse_expr(lhs_text, denominators)
-    rhs = _parse_expr(rhs_text, denominators)
+    lhs = _parse_expr(lhs_text, denominators, root_conditions)
+    rhs = _parse_expr(rhs_text, denominators, root_conditions)
     return lhs, rhs
 
 
@@ -432,6 +480,43 @@ def _domain_restrictions(expressions: Sequence[sp.Expr]) -> list[str]:
             seen.add(condition)
             result.append(condition)
     return result
+
+
+def _root_restrictions(radicands: Sequence[sp.Expr]) -> list[str]:
+    """Conditions 'radicand ≥ 0' for roots with letters, without duplicates."""
+    result: list[str] = []
+    for radicand in radicands:
+        condition = f"{sp.sstr(radicand)} ≥ 0"
+        if condition not in result:
+            result.append(condition)
+    return result
+
+
+def _is_simplified_root_form(text: Any) -> bool | None:
+    """None when the answer has no √; otherwise whether its root form is simplified.
+
+    Simplified: every number under a root is a whole number > 1 without a square
+    factor (2√3, not √12) and no root is left in a denominator (√2/2, not 1/√2).
+    """
+    if not isinstance(text, str) or "√" not in text:
+        return None
+    candidate = text.split("=", 1)[1] if text.count("=") == 1 else text
+    ok, _ = _preflight(candidate)
+    if not ok:
+        return None
+    try:
+        parser = _Parser(candidate)
+        parser.parse()
+    except _MathInputError:
+        return None
+    if parser.root_in_denominator:
+        return False
+    for radicand in parser.radicands:
+        if radicand is None or radicand < 2:
+            return False
+        if any(power > 1 for power in sp.factorint(radicand).values()):
+            return False
+    return True
 
 
 def _serialize_exact(expr: sp.Expr) -> str:
@@ -485,7 +570,8 @@ def _solution_set(lhs: sp.Expr, rhs: sp.Expr, unknown: sp.Symbol = X) -> sp.Set:
     if others:
         return sp.FiniteSet(_solve_linear(difference, unknown))
     result = sp.solveset(difference, unknown, domain=sp.S.Reals)
-    if isinstance(result, (sp.FiniteSet, sp.EmptySet)) or result == sp.S.Reals:
+    # sp.EmptySet is a singleton object in recent SymPy, not a class: compare, don't isinstance.
+    if isinstance(result, sp.FiniteSet) or result == sp.S.EmptySet or result == sp.S.Reals:
         return result
     raise _MathInputError("unsupported_solution_set")
 
@@ -552,6 +638,45 @@ def _parse_assignment(text: Any, allow_variable_denominators: bool = False) -> t
     if expr.has(sp.zoo, sp.nan, sp.oo, -sp.oo):
         raise _MathInputError("unsupported_math_form")
     return name, expr
+
+
+def _parse_answer_list(text: Any) -> list[tuple[str | None, sp.Expr]]:
+    """Read 'x = √5 of x = -√5', 'x = ±√5' or a single 'x = 4'."""
+    if not isinstance(text, str):
+        raise _MathInputError("invalid_answer")
+    parts = re.split(r"\s+of\s+|\s*∨\s*", text.strip(), flags=re.IGNORECASE)
+    answers: list[tuple[str | None, sp.Expr]] = []
+    for part in parts:
+        if not part.strip():
+            raise _MathInputError("invalid_answer")
+        if "±" in part:
+            if part.count("±") != 1:
+                raise _MathInputError("invalid_answer")
+            answers.append(_parse_assignment(part.replace("±", "+")))
+            answers.append(_parse_assignment(part.replace("±", "-")))
+        else:
+            answers.append(_parse_assignment(part))
+    return answers
+
+
+def _matches_solution_set(candidates: Sequence[sp.Expr], solutions: sp.Set, places: int | None) -> bool:
+    """Every solution given exactly once (or rounded, when rounding is asked for), in any order."""
+    if not isinstance(solutions, sp.FiniteSet):
+        return False
+    remaining = list(solutions)
+    if len(candidates) != len(remaining):
+        return False
+    for candidate in candidates:
+        for index, solution in enumerate(remaining):
+            if sp.simplify(candidate - solution) == 0:
+                break
+            if (places is not None and candidate.is_number and solution.is_number
+                    and sp.simplify(candidate - _rounded_rational(solution, places)) == 0):
+                break
+        else:
+            return False
+        remaining.pop(index)
+    return True
 
 
 def _parse_rounding_places(instruction: str | None) -> int | None:
@@ -688,6 +813,9 @@ def _verify_arithmetic(check_type: str, input_value: str, submitted_answer: str 
         return _unverifiable(check_type, input_value, exc, parser_invoked=True)
     correct, rounding_fields = _rounded_compare(value, answer, places, submitted_answer)
     fields.update(rounding_fields)
+    simplified = _is_simplified_root_form(submitted_answer)
+    if simplified is not None:
+        fields["is_simplified"] = simplified
     return _result(
         "verified" if correct else "wrong", check_type, input_value, **fields,
         submitted_answer=submitted_answer,
@@ -710,6 +838,11 @@ def _verify_answer_equivalence(input_value: str, submitted_answer: str | None,
     except _MathInputError as exc:
         return _unverifiable("answer_equivalence", input_value, exc, parser_invoked=True)
     correct, rounding_fields = _rounded_compare(input_value_exact, answer, places, submitted_answer)
+    simplified = _is_simplified_root_form(submitted_answer)
+    if simplified is not None:
+        # Equal value and finished form are different questions: √12 for
+        # 'vereenvoudig √12' is verified, but is_simplified is false.
+        rounding_fields["is_simplified"] = simplified
     return _result(
         "verified" if correct else "wrong", "answer_equivalence", input_value,
         exact_value=_serialize_exact(input_value_exact), submitted_answer=submitted_answer,
@@ -721,21 +854,24 @@ def _verify_answer_equivalence(input_value: str, submitted_answer: str | None,
 
 def _verify_expression_equivalence(input_value: str) -> dict[str, Any]:
     denominators: list[sp.Expr] = []
+    root_conditions: list[sp.Expr] = []
     try:
-        lhs, rhs = _parse_equation(input_value, denominators)
+        lhs, rhs = _parse_equation(input_value, denominators, root_conditions)
         difference = sp.simplify(lhs - rhs)
         equivalent = difference == 0
     except _MathInputError as exc:
         return _unverifiable("expression_equivalence", input_value, exc,
                              parser_invoked=exc.reason not in _PREFLIGHT_REASONS)
     fields: dict[str, Any] = {"equivalent": bool(equivalent), "parser_invoked": True}
-    if denominators:
-        fields["domain_restrictions"] = _domain_restrictions(denominators)
+    restrictions = _domain_restrictions(denominators) + _root_restrictions(root_conditions)
+    if restrictions:
+        fields["domain_restrictions"] = restrictions
     return _result(
         "verified" if equivalent else "wrong", "expression_equivalence", input_value,
         **fields,
-        explanation_nl=("De twee uitdrukkingen zijn equivalent op het domein waar de noemers niet nul zijn."
-                        if equivalent and denominators else
+        explanation_nl=("De twee uitdrukkingen zijn equivalent op het domein waar ze bestaan "
+                        "(noemers niet nul, onder een wortel niet negatief)."
+                        if equivalent and restrictions else
                         "De twee uitdrukkingen zijn equivalent." if equivalent else
                         "De twee uitdrukkingen zijn niet equivalent."),
     )
@@ -776,26 +912,22 @@ def _verify_equation_solution(input_value: str, submitted_answer: str | None, ta
                                        else "De vergelijking is niet waar voor alle reële getallen."))
 
     try:
-        answer_name, candidate = _parse_assignment(submitted_answer)
+        answers = _parse_answer_list(submitted_answer)
         places = _parse_rounding_places(task_instruction)
-        if candidate.has(unknown):
+        if any(expr.has(unknown) for _, expr in answers):
             raise _MathInputError("invalid_answer")
     except _MathInputError as exc:
         return _unverifiable("equation_solution", input_value, exc, parser_invoked=True)
 
-    # A single supplied root counts as the complete answer only if the full
-    # solution set is that singleton. A valid root is not enough when another
-    # real root has been omitted.
-    exact_match = isinstance(solutions, sp.FiniteSet) and len(solutions) == 1 and sp.simplify(candidate - next(iter(solutions))) == 0
-    rounded_match = False
+    # The answer must give the whole solution set: one valid root is not enough
+    # when another real root has been left out (x² = 9 needs 3 and -3).
+    correct = _matches_solution_set([expr for _, expr in answers], solutions, places)
     rounded_answer: str | None = None
     if (places is not None and isinstance(solutions, sp.FiniteSet) and len(solutions) == 1
-            and candidate.is_number and next(iter(solutions)).is_number):
-        exact_solution = next(iter(solutions))
-        rounded_value = _rounded_rational(exact_solution, places)
-        rounded_match = sp.simplify(candidate - rounded_value) == 0
-        rounded_answer = _rounded_display(exact_solution, places)
-    correct = bool(exact_match or rounded_match)
+            and next(iter(solutions)).is_number):
+        rounded_answer = _rounded_display(next(iter(solutions)), places)
+    mismatched = [name for name, _ in answers if name is not None and name != unknown.name]
+    answer_name = mismatched[0] if mismatched else None
     fields: dict[str, Any] = {
         "solution_set": serialized_solutions,
         "submitted_answer": submitted_answer,
@@ -821,7 +953,30 @@ def _verify_equation_solution(input_value: str, submitted_answer: str | None, ta
     return _result("verified" if correct else "wrong", "equation_solution", input_value, **fields)
 
 
-def _verify_formula_substitution(input_value: str, substitutions: Any, submitted_answer: str | None) -> dict[str, Any]:
+def _solve_target(numerator: sp.Expr, target: sp.Symbol) -> tuple[sp.Expr, bool]:
+    """Solve for the one unknown after filling in values.
+
+    Linear: the single solution. Squared (c² = 41, Pythagoras): two solutions ±v;
+    the positive one is taken because the formula describes a length, and the
+    second value says so (assumed_positive).
+    """
+    try:
+        poly = sp.Poly(sp.expand(numerator), target)
+    except sp.PolynomialError as exc:
+        raise _MathInputError("unsupported_solution_set") from exc
+    if poly.degree() == 1:
+        return _solve_linear(numerator, target), False
+    if poly.degree() == 2 and not any(c.free_symbols for c in poly.all_coeffs()):
+        solutions = sp.solveset(numerator, target, domain=sp.S.Reals)
+        if isinstance(solutions, sp.FiniteSet) and len(solutions) == 2:
+            low, high = sorted(solutions, key=lambda value: float(value))
+            if sp.simplify(low + high) == 0 and high.is_positive:
+                return high, True
+    raise _MathInputError("unsupported_solution_set")
+
+
+def _verify_formula_substitution(input_value: str, substitutions: Any, submitted_answer: str | None,
+                                 task_instruction: str | None = None) -> dict[str, Any]:
     """Fill in given values (e.g. p = 3 in w = 4p + 10) and check the result.
 
     The letter that is left over may also sit in a denominator, e.g. t in
@@ -855,9 +1010,11 @@ def _verify_formula_substitution(input_value: str, substitutions: Any, submitted
             raise _MathInputError("ambiguous_unknown")
         target = next(iter(remaining))
         numerator, fraction_denominator = filled_in.as_numer_denom()
-        value = _solve_linear(numerator, target)
+        value, assumed_positive = _solve_target(numerator, target)
         if not value.is_number:
             raise _MathInputError("unsupported_solution_set")
+        if value.is_real is False:
+            raise _MathInputError("not_real")
         for denominator in [*denominators, fraction_denominator]:
             evaluated_denominator = sp.simplify(denominator.subs(mapping).subs({target: value}))
             if evaluated_denominator == 0:
@@ -870,6 +1027,8 @@ def _verify_formula_substitution(input_value: str, substitutions: Any, submitted
         "target_variable": target.name,
         "parser_invoked": True,
     }
+    if assumed_positive:
+        fields["assumed_positive"] = True
     if denominators:
         fields["domain_restrictions"] = _domain_restrictions(denominators)
     if submitted_answer is None:
@@ -881,12 +1040,18 @@ def _verify_formula_substitution(input_value: str, substitutions: Any, submitted
         answer_name, candidate = _parse_assignment(submitted_answer)
         if candidate.free_symbols:
             raise _MathInputError("invalid_answer")
+        places = _parse_rounding_places(task_instruction)
     except _MathInputError as exc:
         return _unverifiable(check_type, input_value, exc, parser_invoked=True)
-    correct = sp.simplify(candidate - value) == 0
+    correct, rounding_fields = _rounded_compare(value, candidate, places, submitted_answer)
+    fields.update(rounding_fields)
     fields["submitted_answer"] = submitted_answer
     fields["explanation_nl"] = ("Het antwoord klopt na invullen." if correct
                                 else f"Na invullen is {target.name} = {_serialize_exact(value)}.")
+    if not correct and assumed_positive and sp.simplify(candidate - value ** 2) == 0:
+        # c = 41 instead of c = √41: the root at the end was forgotten.
+        fields["misconception"] = "forgot_square_root"
+        fields["explanation_nl"] += f" Je hebt {target.name}² berekend; neem nog de wortel."
     if answer_name is not None and answer_name != target.name:
         # Same rule as equation_solution: right value, wrong letter is 'wrong'.
         fields["variable_mismatch"] = True
@@ -1275,7 +1440,7 @@ def verify_math(
     if check_type == "equation_solution":
         return _verify_equation_solution(input, submitted_answer, task_instruction, variable)
     if check_type == "formula_substitution":
-        return _verify_formula_substitution(input, substitutions, submitted_answer)
+        return _verify_formula_substitution(input, substitutions, submitted_answer, task_instruction)
     if check_type == "formula_rewrite":
         return _verify_formula_rewrite(input, submitted_answer)
     if check_type == "unit_conversion":
