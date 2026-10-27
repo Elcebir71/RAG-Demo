@@ -20,6 +20,7 @@ conventions:
     - inequality_solution     # solve an inequality in one letter; answer like "x < 3", "-3 < x ≤ 3", "geen oplossing"
     - system_solution         # two linear equations in two letters; answer like "x = 3, y = 1" or "x = 3 en y = 1"
     - function_notation       # f(x) = ... definitions plus one task: a value f(-2), or an equation f(x) = 8 / f(x) = g(x)
+    - statistics              # "gemiddelde: 4, 7, 7, 9, 3"; also mediaan, modus, spreidingsbreedte
     - percentage_change       # percentage increase/decrease, input "old -> new", answer like "25%", "-20%" or "20% afname"
   inequalities: >-
     Signs <, >, ≤, ≥ (also <= and >=). One letter, linear for now; a double inequality like
@@ -58,6 +59,14 @@ conventions:
     answer is (b ± √D)/2a instead of (-b ± √D)/2a (all solutions have the wrong sign);
     divided_by_2_not_2a: the answer is (-b ± √D)/2 while a is not 1. The discriminant D = b² - 4ac is
     checked with formula_substitution.
+  statistics: >-
+    Input is the name of the measure, a colon and the data: "gemiddelde: 4, 7, 7, 9, 3". Measures:
+    gemiddelde, mediaan, modus, spreidingsbreedte (also 'bereik'). Values are separated by ';' or by a
+    comma followed by a space; a comma between two digits is a decimal comma (1,5; 2,5 or 1,5, 2,5).
+    A list like 4,7,7,9 without spaces is ambiguous. Modus: the value(s) that occur most often; two
+    values can both be the modus ("5 en 8"); when every value occurs equally often the answer is
+    "geen modus". Misconceptions: median_not_sorted (middle of the unsorted list), median_even_count
+    (one of the two middle values instead of their mean), confused_with_median and confused_with_mean.
   roots: >-
     √ applies to the next number, letter or bracket: √12 + 1 is (√12) + 1, √(x + 1) needs brackets.
     A root form is simplified when no square factor is left under the root (2√3, not √12) and no
@@ -1735,3 +1744,148 @@ cases:
     input: "x² + 3x - 1 = 0"
     submitted_answer: "x = (-3 + √13)/2"
     expected: {status: wrong}
+
+  # --- Statistics: mean, median, mode, range (tests written before the code, 27 Oct 2026) ---
+  - id: VM201
+    title: Mean of a list
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "gemiddelde: 4, 7, 7, 9, 3"
+    submitted_answer: "6"
+    expected: {status: verified, exact_value: "6"}
+
+  - id: VM202
+    title: Mean rounded on request
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "gemiddelde: 4, 7, 8"
+    submitted_answer: "6,3"
+    task_instruction: "Rond af op 1 decimaal."
+    expected: {status: verified, exact_value: "19/3", rounded_answer: "6,3"}
+
+  - id: VM203
+    title: Mean rounded without a rounding instruction
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "gemiddelde: 4, 7, 8"
+    submitted_answer: "6,3"
+    expected: {status: wrong}
+
+  - id: VM204
+    title: Decimal values separated by semicolons
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "gemiddelde: 1,5; 2,5; 3,5"
+    submitted_answer: "2,5"
+    expected: {status: verified}
+
+  - id: VM205
+    title: Median of an unsorted list with an odd count
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "mediaan: 9, 3, 8, 4, 2"
+    submitted_answer: "4"
+    expected: {status: verified}
+
+  - id: VM206
+    title: Median taken from the unsorted list
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "mediaan: 9, 3, 8, 4, 2"
+    submitted_answer: "8"
+    expected: {status: wrong, misconception: median_not_sorted}
+
+  - id: VM207
+    title: Median with an even count
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "mediaan: 3, 8, 5, 10"
+    submitted_answer: "6,5"
+    expected: {status: verified}
+
+  - id: VM208
+    title: Median with an even count, only one middle value
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "mediaan: 3, 8, 5, 10"
+    submitted_answer: "5"
+    expected: {status: wrong, misconception: median_even_count}
+
+  - id: VM209
+    title: One mode
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "modus: 4, 7, 7, 9, 3"
+    submitted_answer: "7"
+    expected: {status: verified}
+
+  - id: VM210
+    title: Two modes
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "modus: 2, 5, 5, 8, 8, 1"
+    submitted_answer: "5 en 8"
+    expected: {status: verified}
+
+  - id: VM211
+    title: Two modes, only one given
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "modus: 2, 5, 5, 8, 8, 1"
+    submitted_answer: "5"
+    expected: {status: wrong}
+
+  - id: VM212
+    title: No mode when every value occurs once
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "modus: 1, 2, 3, 4"
+    submitted_answer: "geen modus"
+    expected: {status: verified}
+
+  - id: VM213
+    title: Range
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "spreidingsbreedte: 12, 5, 19, 8"
+    submitted_answer: "14"
+    expected: {status: verified}
+
+  - id: VM214
+    title: Median given when the mean is asked
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "gemiddelde: 2, 3, 4, 15"
+    submitted_answer: "3,5"
+    expected: {status: wrong, exact_value: "6", misconception: confused_with_median}
+
+  - id: VM215
+    title: List without spaces after the commas is ambiguous
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "gemiddelde: 4,7,7,9"
+    submitted_answer: "6,75"
+    expected: {status: unverifiable, reason: ambiguous_comma_notation}
+
+  - id: VM216
+    title: Measure that is not supported
+    check_type: statistics
+    curriculum_scope: out_of_curriculum_tool_test
+    input: "standaardafwijking: 1, 2, 3"
+    submitted_answer: "1"
+    expected: {status: unverifiable, reason: unsupported_statistic}
+
+  - id: VM217
+    title: No answer means nothing was checked
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "gemiddelde: 4, 7, 7, 9, 3"
+    expected: {status: unverifiable, reason: no_claim_to_check, exact_value: "6"}
+
+  - id: VM218
+    title: Negative values
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "gemiddelde: -2, 4, -5, 7"
+    submitted_answer: "1"
+    expected: {status: verified}

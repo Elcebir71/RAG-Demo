@@ -15,7 +15,8 @@ Scope:
 - percentages: 25%, '25% van 80', and percentage change (80 -> 100 = 25%);
 - linear inequalities in one letter, also double ones (-4 < 2x + 2 ≤ 8);
 - systems of two linear equations in two letters (2x + y = 7; x - y = 2);
-- function notation: f(x) = ... with a value f(-2) or an equation f(x) = g(x).
+- function notation: f(x) = ... with a value f(-2) or an equation f(x) = g(x);
+- statistics of a list: gemiddelde, mediaan, modus, spreidingsbreedte.
 
 This is a verification aid, not a proof of pedagogical correctness or of the
 semantic modelling of a word problem. See README.md for the limitations.
@@ -122,6 +123,8 @@ _REASON_NL = {
     "invalid_inequality": "Voer één ongelijkheid in met <, >, ≤ of ≥, of een dubbele ongelijkheid zoals -4 < 2x + 2 ≤ 8.",
     "invalid_system": "Voer een stelsel in als twee vergelijkingen, gescheiden door ';' of een nieuwe regel, bijvoorbeeld 2x + y = 7; x - y = 2.",
     "invalid_function": "Geef eerst de functie(s), bijvoorbeeld f(x) = 2x + 1, en daarna de opdracht, gescheiden door ';': f(3) of f(x) = 7. Gebruik alleen functies die gedefinieerd zijn.",
+    "unsupported_statistic": "Deze statistische maat wordt (nog) niet ondersteund; kies gemiddelde, mediaan, modus of spreidingsbreedte.",
+    "invalid_statistics_input": "Geef de maat en de getallen, bijvoorbeeld 'gemiddelde: 4, 7, 7, 9, 3' of 'mediaan: 1,5; 2,5; 3,5'.",
     "interval_notation_not_supported": "Intervalnotatie (zoals ⟨←, 3⟩ of [2, 5]) wordt nog niet gelezen; schrijf het antwoord als x < 3 of 2 ≤ x ≤ 5.",
 }
 
@@ -2095,6 +2098,166 @@ def _verify_function_notation(input_value: str, submitted_answer: str | None,
     return _result("wrong", check_type, input_value, **fields)
 
 
+# --- Statistics: gemiddelde, mediaan, modus, spreidingsbreedte --------------
+_STAT_MEASURES = {
+    "gemiddelde": "mean",
+    "mediaan": "median",
+    "modus": "mode",
+    "spreidingsbreedte": "range",
+    "variatiebreedte": "range",
+    "bereik": "range",
+}
+_STAT_NAMES_NL = {"mean": "het gemiddelde", "median": "de mediaan", "mode": "de modus", "range": "de spreidingsbreedte"}
+_STAT_INPUT_RE = re.compile(r"\s*([A-Za-zÀ-ÿ]+)\s*:\s*(.+?)\s*", re.DOTALL)
+_STAT_VALUE_RE = re.compile(r"[-−–]?\d+(?:,\d+)?")
+MAX_STAT_VALUES = 100
+
+
+def _parse_stat_values(data: str) -> list[sp.Rational]:
+    """'4, 7, 7' or '1,5; 2,5': ';' or a comma plus space separates; a comma between digits is decimal."""
+    items = data.split(";") if ";" in data else re.split(r",\s+", data)
+    values: list[sp.Rational] = []
+    for item in items:
+        item = item.strip()
+        if not item:
+            raise _MathInputError("invalid_statistics_input")
+        if "." in item:
+            raise _MathInputError("ambiguous_dot_notation")
+        if not _STAT_VALUE_RE.fullmatch(item):
+            if "," in item:
+                raise _MathInputError("ambiguous_comma_notation")
+            raise _MathInputError("invalid_statistics_input")
+        values.append(sp.Rational(item.replace("−", "-").replace("–", "-").replace(",", ".")))
+    if not values or len(values) > MAX_STAT_VALUES:
+        raise _MathInputError("invalid_statistics_input")
+    return values
+
+
+def _median(values: Sequence[sp.Expr]) -> sp.Expr:
+    count = len(values)
+    middle = count // 2
+    if count % 2:
+        return values[middle]
+    return (values[middle - 1] + values[middle]) / 2
+
+
+def _modes(values: Sequence[sp.Expr]) -> list[sp.Expr]:
+    counts: dict[sp.Expr, int] = {}
+    for value in values:
+        counts[value] = counts.get(value, 0) + 1
+    if len(counts) > 1 and len(set(counts.values())) == 1:
+        return []  # every value occurs equally often: geen modus
+    top = max(counts.values())
+    return sorted((value for value, count in counts.items() if count == top), key=lambda v: float(v))
+
+
+def _modes_text(modes: Sequence[sp.Expr]) -> str:
+    if not modes:
+        return "geen modus"
+    return " en ".join(_serialize_exact(mode) for mode in modes)
+
+
+def _verify_statistics(input_value: str, submitted_answer: str | None,
+                       task_instruction: str | None = None) -> dict[str, Any]:
+    check_type = "statistics"
+    try:
+        if not isinstance(input_value, str) or not input_value.strip():
+            raise _MathInputError("invalid_statistics_input")
+        if len(input_value) > MAX_INPUT_LENGTH:
+            raise _MathInputError("input_too_long")
+        match = _STAT_INPUT_RE.fullmatch(input_value)
+        if not match:
+            raise _MathInputError("invalid_statistics_input")
+        measure = _STAT_MEASURES.get(match.group(1).casefold())
+        if measure is None:
+            raise _MathInputError("unsupported_statistic")
+        raw = _parse_stat_values(match.group(2))
+        places = _parse_rounding_places(task_instruction)
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc)
+
+    ordered = sorted(raw, key=lambda v: float(v))
+    mean = sum(raw, sp.Integer(0)) / len(raw)
+    median = _median(ordered)
+    modes = _modes(ordered)
+    fields: dict[str, Any] = {
+        "measure": measure,
+        "count": len(raw),
+        "sorted_values": [_serialize_exact(value) for value in ordered],
+        "parser_invoked": True,
+    }
+    if measure == "mode":
+        fields["exact_value"] = _modes_text(modes)
+        fields["modes"] = [_serialize_exact(mode) for mode in modes]
+    else:
+        exact = {"mean": mean, "median": median, "range": ordered[-1] - ordered[0]}[measure]
+        fields["exact_value"] = _serialize_exact(exact)
+    name_nl = _STAT_NAMES_NL[measure]
+
+    if submitted_answer is None or not str(submitted_answer).strip():
+        return _result("unverifiable", check_type, input_value, **fields, reason="no_claim_to_check",
+                       explanation_nl=f"{_REASON_NL['no_claim_to_check']} {name_nl.capitalize()} is {fields['exact_value']}.")
+    fields["submitted_answer"] = submitted_answer
+
+    if measure == "mode":
+        phrase = " ".join(submitted_answer.strip().casefold().split())
+        try:
+            if phrase in {"geen modus", "geen", "er is geen modus"}:
+                given: list[sp.Expr] = []
+            else:
+                given = [_numeric_value(part) for part in re.split(r"\s+en\s+|\s*;\s*|,\s+", submitted_answer.strip())
+                         if part.strip()]
+                if not given:
+                    raise _MathInputError("invalid_answer")
+        except _MathInputError as exc:
+            return _unverifiable(check_type, input_value, exc, parser_invoked=True)
+        correct = sorted(given, key=lambda v: float(v)) == list(modes)
+        if correct:
+            fields["explanation_nl"] = f"Het antwoord klopt: {name_nl} is {fields['exact_value']}."
+        elif len(modes) > 1 and set(given) < set(modes):
+            fields["explanation_nl"] = (f"Er zijn meerdere waarden die het vaakst voorkomen: {fields['exact_value']}. "
+                                        "Noem ze allemaal.")
+        else:
+            fields["explanation_nl"] = f"Het antwoord klopt niet: {name_nl} is {fields['exact_value']}."
+        return _result("verified" if correct else "wrong", check_type, input_value, **fields)
+
+    try:
+        answer = _numeric_value(submitted_answer)
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc, parser_invoked=True)
+    correct, rounding_fields = _rounded_compare(exact, answer, places, submitted_answer)
+    fields.update(rounding_fields)
+    if correct:
+        fields["explanation_nl"] = f"Het antwoord klopt: {name_nl} is {fields['exact_value']}."
+        return _result("verified", check_type, input_value, **fields)
+
+    def same(value: sp.Expr) -> bool:
+        return _rounded_compare(value, answer, places, submitted_answer)[0]
+
+    misconception = None
+    explanation = f"Het antwoord klopt niet: {name_nl} is {fields['exact_value']}."
+    if measure == "median":
+        unsorted_middle = _median(raw)
+        if unsorted_middle != median and same(unsorted_middle):
+            misconception = "median_not_sorted"
+            explanation = ("Zet de getallen eerst op volgorde; daarna is de mediaan het middelste getal. "
+                           f"De mediaan is {fields['exact_value']}.")
+        elif len(raw) % 2 == 0 and (same(ordered[len(raw) // 2 - 1]) or same(ordered[len(raw) // 2])):
+            misconception = "median_even_count"
+            explanation = ("Bij een even aantal getallen is de mediaan het gemiddelde van de twee middelste getallen. "
+                           f"De mediaan is {fields['exact_value']}.")
+        elif mean != median and same(mean):
+            misconception = "confused_with_mean"
+            explanation = f"Dit is het gemiddelde, niet de mediaan. De mediaan is {fields['exact_value']}."
+    elif measure == "mean" and mean != median and same(median):
+        misconception = "confused_with_median"
+        explanation = f"Dit is de mediaan, niet het gemiddelde. Het gemiddelde is {fields['exact_value']}."
+    if misconception:
+        fields["misconception"] = misconception
+    fields["explanation_nl"] = explanation
+    return _result("wrong", check_type, input_value, **fields)
+
+
 def verify_math(
     check_type: str,
     input: str = "",
@@ -2110,7 +2273,7 @@ def verify_math(
         check_type: one of arithmetic, answer_equivalence, expression_equivalence,
             equation_solution, step_validation, formula_substitution, formula_rewrite,
             unit_conversion, percentage_change, inequality_solution, system_solution,
-            function_notation.
+            function_notation, statistics.
         input: expression, equation or quantity; not used to infer a word problem's meaning.
         submitted_answer: the student's answer to compare, exactly as written.
         steps: explicit equation steps for step_validation. When omitted, an
@@ -2127,7 +2290,8 @@ def verify_math(
     """
     allowed_types = {"arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
                      "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
-                     "percentage_change", "inequality_solution", "system_solution", "function_notation"}
+                     "percentage_change", "inequality_solution", "system_solution", "function_notation",
+                     "statistics"}
     if check_type not in allowed_types:
         return _unverifiable(str(check_type), input, _MathInputError("unsupported_math_form"))
     if not isinstance(input, str):
@@ -2155,6 +2319,8 @@ def verify_math(
         return _verify_system_solution(input, submitted_answer, task_instruction)
     if check_type == "function_notation":
         return _verify_function_notation(input, submitted_answer, task_instruction, variable)
+    if check_type == "statistics":
+        return _verify_statistics(input, submitted_answer, task_instruction)
     return _verify_steps(input, steps, variable)
 
 
@@ -2167,7 +2333,7 @@ if __name__ == "__main__":
     cli.add_argument("check_type", choices=["arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
                                             "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
                                             "percentage_change", "inequality_solution", "system_solution",
-                                            "function_notation"])
+                                            "function_notation", "statistics"])
     cli.add_argument("input", help="Expression, equation, quantity, or arrow-delimited steps")
     cli.add_argument("--answer")
     cli.add_argument("--instruction")

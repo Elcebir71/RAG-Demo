@@ -30,6 +30,7 @@ CheckType = Literal[
     "inequality_solution",
     "system_solution",
     "function_notation",
+    "statistics",
 ]
 
 
@@ -110,6 +111,13 @@ def verify_math_tool(
         (-2)²; argument_mismatch: the answer names another argument, e.g.
         f(2) instead of f(-2). Use only this check type for f(x) notation:
         elsewhere a(b + c) means a times (b + c).
+      - statistics: input is the measure, a colon and the data, e.g.
+        "gemiddelde: 4, 7, 7, 9, 3", "mediaan: 1,5; 2,5; 3,5". Measures:
+        gemiddelde, mediaan, modus, spreidingsbreedte. Separate values with
+        ';' or with a comma plus a space (a comma between digits is a
+        decimal comma). Modus answers: "7", "5 en 8" or "geen modus".
+        Misconceptions: median_not_sorted, median_even_count,
+        confused_with_median, confused_with_mean.
 
     Percentages elsewhere: 25% = 25/100, "25% van 80" = 20. "80 + 15%" is
     ambiguous (calculator 92, algebra 80,15) and returns ambiguous_percentage:

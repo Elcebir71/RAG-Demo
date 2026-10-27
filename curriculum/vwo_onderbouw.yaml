@@ -268,7 +268,7 @@ topics:
     hv: false
     typical_years: [1, 2]
     evidence: ["KERN 1A 4.1, 4.4-4.5", "M4A if2.2-2.3"]
-    verify_math: {status: planned, note: "Needs a check type that takes a list of numbers."}
+    verify_math: {status: supported, check_types: [statistics], tests: [VM201, VM205, VM206, VM207, VM208, VM210, VM212, VM213, VM214], note: "Gemiddelde, mediaan, modus (also two modi or geen modus) and spreidingsbreedte of a list. Frequency tables are planned."}
 
   - id: T19
     topic: "Kwartielen, interkwartielafstand, boxplot; datasets vergelijken"
