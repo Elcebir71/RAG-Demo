@@ -17,6 +17,27 @@ conventions:
     - formula_substitution    # put given values into a formula, compare with submitted_answer
     - formula_rewrite         # rewrite a formula for another letter (taken from the answer's left side)
     - unit_conversion         # convert a quantity between metric units (fixed unit table, incl. km/u, ml/mL)
+    - inequality_solution     # solve an inequality in one letter; answer like "x < 3", "-3 < x ≤ 3", "geen oplossing"
+    - percentage_change       # percentage increase/decrease, input "old -> new", answer like "25%", "-20%" or "20% afname"
+  inequalities: >-
+    Signs <, >, ≤, ≥ (also <= and >=). One letter, linear for now; a double inequality like
+    -4 < 2x + 2 ≤ 8 is allowed in the input and in the answer. The answer must give the whole
+    solution set with the right open/closed bounds. misconception direction_reversed: the bound is
+    right but the sign points the wrong way (often a negative coefficient without flipping);
+    wrong_bound_type: the numbers are right but < and ≤ are mixed up. Dutch interval notation
+    (⟨-3, 3]) is not read yet and returns unverifiable.
+  roots: >-
+    √ applies to the next number, letter or bracket: √12 + 1 is (√12) + 1, √(x + 1) needs brackets.
+    A root form is simplified when no square factor is left under the root (2√3, not √12) and no
+    root is left in a denominator (√2/2, not 1/√2). Status and is_simplified are reported separately.
+    √ of a negative number is not a real number (not_real). Letters under a root give a condition
+    such as x + 1 ≥ 0. Two solutions may be written 'x = √5 of x = -√5' or 'x = ±√5'.
+    Pythagoras: the formula is given; which side is the hypotenuse is not inferred from a figure.
+    For a squared length the positive solution is taken and assumed_positive is reported.
+  percentages: >-
+    25% means 25/100 and binds like a power (100 : 25% = 400). 'p% van q' means p% · q.
+    A number plus or minus a percentage (80 + 15%) is ambiguous and returns ambiguous_percentage.
+    A decrease written without sign or 'afname' is wrong, with value_correct and direction_missing.
   conditions: >-
     Nonzero conditions from letters in a denominator are reported in their simplest readable form:
     constant factors are dropped (2x ≠ 0 becomes x ≠ 0) and duplicates removed.
@@ -801,4 +822,504 @@ cases:
     input: "1 L"
     submitted_answer: "1000 cm³"
     expected: {status: verified, exact_value: "1000", target_unit: "cm³"}
+
+  - id: VM095
+    title: Cubic unit typed without superscript
+    check_type: unit_conversion
+    curriculum_scope: vwo1_candidate
+    input: "1 dm3"
+    submitted_answer: "1 L"
+    expected: {status: verified, exact_value: "1", source_unit: "dm³"}
+    notes: "Found in a Claude Desktop test on 27 Oct 2026: the model sent dm3, which was rejected before parsing."
+
+  - id: VM096
+    title: Square unit typed without superscript
+    check_type: unit_conversion
+    curriculum_scope: vwo1_candidate
+    input: "2 m2"
+    submitted_answer: "20000 cm2"
+    expected: {status: verified, exact_value: "20000", source_unit: "m²", target_unit: "cm²"}
+
+  # --- Percentages (27 Oct 2026) ---
+  - id: VM097
+    title: Percentage of a number with 'van'
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "25% van 80"
+    submitted_answer: "20"
+    expected: {status: verified, exact_value: "20"}
+
+  - id: VM098
+    title: Dividing instead of taking a percentage
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "15% van 60"
+    submitted_answer: "4"
+    expected: {status: wrong, exact_value: "9"}
+    misconception: "Computed 60 : 15 instead of 15/100 × 60."
+
+  - id: VM099
+    title: Fraction and percentage are the same value
+    check_type: answer_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "1/4"
+    submitted_answer: "25%"
+    expected: {status: verified, exact_value: "1/4"}
+
+  - id: VM100
+    title: Rounded percentage when rounding is asked for
+    check_type: answer_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "1/3"
+    submitted_answer: "33,33%"
+    task_instruction: "Rond af op 2 decimalen."
+    expected: {status: verified, rounded_answer: "33,33%", decimal_places: 2}
+    notes: "Rounding applies to the percentage number (33,33), not to the fraction (0,33)."
+
+  - id: VM101
+    title: Rounded percentage without a rounding instruction
+    check_type: answer_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "1/3"
+    submitted_answer: "33,33%"
+    expected: {status: wrong, exact_value: "1/3"}
+
+  - id: VM102
+    title: Percent binds tightly
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "100 : 25%"
+    submitted_answer: "400"
+    expected: {status: verified, exact_value: "400"}
+    notes: "100 : 25% means 100 : 0,25, not (100 : 25) : 100."
+
+  - id: VM103
+    title: Number plus a percentage is ambiguous
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "80 + 15%"
+    submitted_answer: "92"
+    expected: {status: unverifiable, reason: ambiguous_percentage, parser_invoked: false}
+    notes: "92 on a calculator, 80,15 in algebra: the tool must not choose."
+
+  - id: VM104
+    title: Percentage increase
+    check_type: percentage_change
+    curriculum_scope: vwo1_candidate
+    input: "80 -> 100"
+    submitted_answer: "25%"
+    expected: {status: verified, exact_value: "25"}
+
+  - id: VM105
+    title: Increase divided by the new value
+    check_type: percentage_change
+    curriculum_scope: vwo1_candidate
+    input: "80 -> 100"
+    submitted_answer: "20%"
+    expected: {status: wrong, exact_value: "25", misconception: divided_by_new_value}
+
+  - id: VM106
+    title: Percentage decrease with a minus sign
+    check_type: percentage_change
+    curriculum_scope: vwo1_candidate
+    input: "100 -> 80"
+    submitted_answer: "-20%"
+    expected: {status: verified, exact_value: "-20"}
+
+  - id: VM107
+    title: Percentage decrease written with 'afname'
+    check_type: percentage_change
+    curriculum_scope: vwo1_candidate
+    input: "100 -> 80"
+    submitted_answer: "20% afname"
+    expected: {status: verified}
+
+  - id: VM108
+    title: Decrease without a direction
+    check_type: percentage_change
+    curriculum_scope: vwo1_candidate
+    input: "100 -> 80"
+    submitted_answer: "20%"
+    expected: {status: wrong, value_correct: true, direction_missing: true}
+    notes: "Decision 27 Oct 2026 (open for review): a decrease needs a minus sign or 'afname'."
+
+  - id: VM109
+    title: Rounded percentage change with singular 'decimaal'
+    check_type: percentage_change
+    curriculum_scope: vwo1_candidate
+    input: "30 -> 40"
+    submitted_answer: "33,3%"
+    task_instruction: "Rond af op 1 decimaal."
+    expected: {status: verified, exact_value: "100/3", rounded_answer: "33,3", decimal_places: 1}
+
+  - id: VM110
+    title: Percentage change from zero is undefined
+    check_type: percentage_change
+    curriculum_scope: tool_boundary_test
+    input: "0 -> 50"
+    submitted_answer: "100%"
+    expected: {status: unverifiable, reason: division_by_zero}
+
+  - id: VM111
+    title: The word 'van' is only allowed after a percent sign
+    check_type: arithmetic
+    curriculum_scope: tool_boundary_test
+    input: "80 van 100"
+    submitted_answer: "80"
+    expected: {status: unverifiable, reason: requires_semantic_formalisation}
+
+  - id: VM112
+    title: Percentage without an answer is not verified
+    check_type: percentage_change
+    curriculum_scope: vwo1_candidate
+    input: "80 -> 100"
+    expected: {status: unverifiable, reason: no_claim_to_check, exact_value: "25"}
+
+  # --- Roots (tests written before the code, 27 Oct 2026) ---
+  - id: VM113
+    title: Multiplying roots
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "√2 · √8"
+    submitted_answer: "4"
+    expected: {status: verified, exact_value: "4"}
+
+  - id: VM114
+    title: Simplified root form
+    check_type: answer_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "√12"
+    submitted_answer: "2√3"
+    expected: {status: verified, is_simplified: true}
+
+  - id: VM115
+    title: Equal value but not simplified
+    check_type: answer_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "√12"
+    submitted_answer: "√12"
+    expected: {status: verified, is_simplified: false}
+    notes: "Mathematically equal, but a 'vereenvoudig' task is not finished: both facts are reported."
+
+  - id: VM116
+    title: Wrong factor taken out of the root
+    check_type: answer_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "√12"
+    submitted_answer: "3√2"
+    expected: {status: wrong}
+
+  - id: VM117
+    title: Simplifying √50
+    check_type: answer_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "√50"
+    submitted_answer: "5√2"
+    expected: {status: verified, is_simplified: true}
+
+  - id: VM118
+    title: Root removed from the denominator
+    check_type: answer_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "1/√2"
+    submitted_answer: "√2/2"
+    expected: {status: verified, is_simplified: true}
+
+  - id: VM119
+    title: Root left in the denominator
+    check_type: answer_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "1/√2"
+    submitted_answer: "1/√2"
+    expected: {status: verified, is_simplified: false}
+
+  - id: VM120
+    title: Decimal value of a root without a rounding instruction
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "√2"
+    submitted_answer: "1,41"
+    expected: {status: wrong, exact_value: "sqrt(2)"}
+
+  - id: VM121
+    title: Decimal value of a root with a rounding instruction
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "√2"
+    submitted_answer: "1,41"
+    task_instruction: "Rond af op 2 decimalen."
+    expected: {status: verified, rounded_answer: "1,41"}
+
+  - id: VM122
+    title: Root of a negative number
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "√-4"
+    submitted_answer: "-2"
+    expected: {status: unverifiable, reason: not_real}
+
+  - id: VM123
+    title: Root of a square is the absolute value
+    check_type: expression_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "√(x²) = x"
+    expected: {status: wrong, equivalent: false}
+    misconception: "√(x²) = |x|; for negative x it is not x."
+
+  - id: VM124
+    title: Square of a root with its condition
+    check_type: expression_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "(√x)² = x"
+    expected: {status: verified, equivalent: true, domain_restrictions: ["x ≥ 0"]}
+
+  - id: VM125
+    title: Condition from a root with an expression inside
+    check_type: expression_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "√(x + 1) · √(x + 1) = x + 1"
+    expected: {status: verified, equivalent: true, domain_restrictions: ["x + 1 ≥ 0"]}
+
+  - id: VM126
+    title: Root of a sum split into two roots
+    check_type: expression_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "√(a + b) = √a + √b"
+    expected: {status: wrong, equivalent: false}
+    misconception: "A root of a sum is not the sum of the roots."
+
+  - id: VM127
+    title: Two roots in one answer
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "x² = 5"
+    submitted_answer: "x = √5 of x = -√5"
+    expected: {status: verified}
+
+  - id: VM128
+    title: Two roots written with ±
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "x² = 5"
+    submitted_answer: "x = ±√5"
+    expected: {status: verified}
+
+  - id: VM129
+    title: One of two roots missing
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "x² = 5"
+    submitted_answer: "x = √5"
+    expected: {status: wrong}
+
+  - id: VM130
+    title: Two whole roots in one answer, in another order
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "x² = 9"
+    submitted_answer: "x = -3 of x = 3"
+    expected: {status: verified, solution_set: {kind: finite, values: ["-3", "3"]}}
+
+  - id: VM131
+    title: Two rounded roots with a rounding instruction
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "x² = 5"
+    submitted_answer: "x = 2,24 of x = -2,24"
+    task_instruction: "Rond af op 2 decimalen."
+    expected: {status: verified}
+
+  - id: VM132
+    title: Pythagoras, exact hypotenuse
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "a² + b² = c²"
+    substitutions: {a: "4", b: "5"}
+    submitted_answer: "c = √41"
+    expected: {status: verified, target_variable: "c", assumed_positive: true}
+
+  - id: VM133
+    title: Pythagoras, square root forgotten
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "a² + b² = c²"
+    substitutions: {a: "4", b: "5"}
+    submitted_answer: "c = 41"
+    expected: {status: wrong, misconception: forgot_square_root}
+
+  - id: VM134
+    title: Pythagoras, sides added instead of squared
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "a² + b² = c²"
+    substitutions: {a: "4", b: "5"}
+    submitted_answer: "c = 9"
+    expected: {status: wrong}
+
+  - id: VM135
+    title: Pythagoras, rounded hypotenuse with a rounding instruction
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "a² + b² = c²"
+    substitutions: {a: "4", b: "5"}
+    submitted_answer: "c = 6,40"
+    task_instruction: "Rond af op 2 decimalen."
+    expected: {status: verified, rounded_answer: "6,40"}
+
+  - id: VM136
+    title: Pythagoras, a leg instead of the hypotenuse
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "a² + b² = c²"
+    substitutions: {b: "5", c: "13"}
+    submitted_answer: "a = 12"
+    expected: {status: verified, exact_value: "12", target_variable: "a"}
+
+  - id: VM137
+    title: Equation with a root
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "√x = 3"
+    submitted_answer: "x = 9"
+    expected: {status: verified}
+
+  - id: VM138
+    title: A root is never negative
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "√x = -3"
+    submitted_answer: "geen oplossing"
+    expected: {status: verified, solution_set: {kind: empty}}
+    misconception: "Squaring both sides gives x = 9, but √9 = 3, not -3."
+
+  # --- Inequalities (tests written before the code, 27 Oct 2026) ---
+  - id: VM139
+    title: Linear inequality
+    check_type: inequality_solution
+    curriculum_scope: vwo1_candidate
+    input: "3x + 2 < 11"
+    submitted_answer: "x < 3"
+    expected: {status: verified, solution_set: "x < 3"}
+
+  - id: VM140
+    title: Sign not flipped after dividing by a negative number
+    check_type: inequality_solution
+    curriculum_scope: vwo1_candidate
+    input: "5 - 2x > 1"
+    submitted_answer: "x > 2"
+    expected: {status: wrong, solution_set: "x < 2", misconception: direction_reversed}
+    notes: "Dividing by -2 flips the sign: x < 2."
+
+  - id: VM141
+    title: Negative coefficient, sign flipped correctly
+    check_type: inequality_solution
+    curriculum_scope: vwo1_candidate
+    input: "-3x + 6 ≤ 0"
+    submitted_answer: "x ≥ 2"
+    expected: {status: verified, solution_set: "x ≥ 2"}
+
+  - id: VM142
+    title: Negative coefficient, sign not flipped
+    check_type: inequality_solution
+    curriculum_scope: vwo1_candidate
+    input: "-3x + 6 ≤ 0"
+    submitted_answer: "x ≤ 2"
+    expected: {status: wrong, solution_set: "x ≥ 2", misconception: direction_reversed}
+
+  - id: VM143
+    title: Brackets in an inequality
+    check_type: inequality_solution
+    curriculum_scope: vwo1_candidate
+    input: "2(x - 3) > 4"
+    submitted_answer: "x > 5"
+    expected: {status: verified}
+
+  - id: VM144
+    title: Fraction in an inequality
+    check_type: inequality_solution
+    curriculum_scope: vwo1_candidate
+    input: "(x - 1)/3 ≥ 2"
+    submitted_answer: "x ≥ 7"
+    expected: {status: verified}
+
+  - id: VM145
+    title: Inequality without solutions
+    check_type: inequality_solution
+    curriculum_scope: vwo1_candidate
+    input: "3x + 4 < 3x + 1"
+    submitted_answer: "geen oplossing"
+    expected: {status: verified, solution_set: empty}
+
+  - id: VM146
+    title: Inequality true for every number
+    check_type: inequality_solution
+    curriculum_scope: vwo1_candidate
+    input: "2(x + 1) ≥ 2x + 2"
+    submitted_answer: "alle reële getallen"
+    expected: {status: verified, solution_set: all_reals}
+
+  - id: VM147
+    title: Double inequality
+    check_type: inequality_solution
+    curriculum_scope: vwo1_candidate
+    input: "-4 < 2x + 2 ≤ 8"
+    submitted_answer: "-3 < x ≤ 3"
+    expected: {status: verified, solution_set: "-3 < x ≤ 3"}
+
+  - id: VM148
+    title: Double inequality with open and closed bounds swapped
+    check_type: inequality_solution
+    curriculum_scope: vwo1_candidate
+    input: "-4 < 2x + 2 ≤ 8"
+    submitted_answer: "-3 ≤ x < 3"
+    expected: {status: wrong, solution_set: "-3 < x ≤ 3", misconception: wrong_bound_type}
+
+  - id: VM149
+    title: Direction reversed without a negative coefficient
+    check_type: inequality_solution
+    curriculum_scope: vwo1_candidate
+    input: "2x - 3 ≤ x + 4"
+    submitted_answer: "x ≥ 7"
+    expected: {status: wrong, solution_set: "x ≤ 7", misconception: direction_reversed}
+
+  - id: VM150
+    title: Decimal coefficient
+    check_type: inequality_solution
+    curriculum_scope: vwo1_candidate
+    input: "0,5x - 1 ≤ 2"
+    submitted_answer: "x ≤ 6"
+    expected: {status: verified}
+
+  - id: VM151
+    title: ASCII signs <= and >=
+    check_type: inequality_solution
+    curriculum_scope: vwo1_candidate
+    input: "-3x + 6 <= 0"
+    submitted_answer: "x >= 2"
+    expected: {status: verified}
+
+  - id: VM152
+    title: Bound written on the left
+    check_type: inequality_solution
+    curriculum_scope: vwo1_candidate
+    input: "3x + 2 < 11"
+    submitted_answer: "3 > x"
+    expected: {status: verified}
+    notes: "3 > x is the same set as x < 3."
+
+  - id: VM153
+    title: Strict and non-strict mixed up
+    check_type: inequality_solution
+    curriculum_scope: vwo1_candidate
+    input: "3x + 2 < 11"
+    submitted_answer: "x ≤ 3"
+    expected: {status: wrong, misconception: wrong_bound_type}
+
+  - id: VM154
+    title: Dutch interval notation is not read yet
+    check_type: inequality_solution
+    curriculum_scope: vwo1_candidate
+    input: "3x + 2 < 11"
+    submitted_answer: "x ∈ ⟨←, 3⟩"
+    expected: {status: unverifiable}
 

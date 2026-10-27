@@ -1,3 +1,4 @@
+from contextlib import closing
 """Tests for the guarantees the application gives, whatever the model does.
 
 A scripted fake model proposes tool calls. The tests check what the application
@@ -41,7 +42,7 @@ def answer(text):
 
 
 def outbox_count():
-    with sqlite3.connect(store.AGENT_DB) as db:
+    with closing(sqlite3.connect(store.AGENT_DB)) as db, db:
         return db.execute("SELECT COUNT(*) FROM outbox").fetchone()[0]
 
 

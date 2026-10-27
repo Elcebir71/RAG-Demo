@@ -26,6 +26,8 @@ CheckType = Literal[
     "formula_substitution",
     "formula_rewrite",
     "unit_conversion",
+    "percentage_change",
+    "inequality_solution",
 ]
 
 
@@ -46,8 +48,8 @@ def verify_math_tool(
 
     When checking a student's work, always pass the student's answer in
     submitted_answer exactly as the student wrote it; never correct it first.
-    Without an answer, arithmetic, formula_substitution and unit_conversion
-    only calculate and return 'unverifiable' with reason 'no_claim_to_check'.
+    Without an answer, arithmetic, formula_substitution, unit_conversion and
+    percentage_change only calculate and return 'unverifiable' with reason 'no_claim_to_check'.
 
     check_type:
       - arithmetic: input is a numeric expression, e.g. "-3/4 + 2/3 × (-1,5)";
@@ -73,22 +75,53 @@ def verify_math_tool(
         length, mass, area, volume (litres included, ml or mL), time (s, min,
         u or h, d) and speed (m/s, km/u, km/h, m/min). Pass a rounding
         instruction in task_instruction when the task asks for rounding.
+      - percentage_change: input is "old -> new", submitted_answer the
+        student's percentage, e.g. "80 -> 100" and "25%"; a decrease as "-20%"
+        or "20% afname". A decrease written as plain "20%" returns 'wrong'
+        with direction_missing; misconception 'divided_by_new_value' means the
+        student divided by the new instead of the old value.
+      - inequality_solution: input is a linear inequality in one letter,
+        also a double one, e.g. "5 - 2x > 1" or "-4 < 2x + 2 ≤ 8" (<= and >=
+        work too); submitted_answer the student's solution, e.g. "x < 2",
+        "3 > x", "-3 < x ≤ 3", "geen oplossing" or "alle reële getallen".
+        solution_set gives the correct set as text. misconception
+        'direction_reversed': right bound, sign the wrong way (often a
+        negative coefficient without flipping); 'wrong_bound_type': < and ≤
+        mixed up. Interval notation (⟨←, 3⟩) returns
+        interval_notation_not_supported: ask for the x < 3 form.
+
+    Percentages elsewhere: 25% = 25/100, "25% van 80" = 20. "80 + 15%" is
+    ambiguous (calculator 92, algebra 80,15) and returns ambiguous_percentage:
+    ask which one is meant. Rounding instructions ("Rond af op 2 decimalen",
+    "Rond af op 1 decimaal") work for arithmetic, answer_equivalence,
+    equation_solution, formula_substitution, unit_conversion and
+    percentage_change.
 
     Letters: any single letter can be a variable (case-sensitive); 'ab' means
     a times b. e and i are variables too, but any power of e (e², e^x) and
     i² return ambiguous_constant: ask the teacher whether e is Euler's number
     or i the imaginary unit. π is always the constant pi. Word formulas
     ('aantal') are not supported. If an equation has more than one letter,
-    pass the letter to solve for in 'variable'. If the result has
+    pass the letter to solve for in 'variable' (also for inequalities). If the result has
     variable_mismatch with value_correct true, tell the teacher the value is
     right but the answer is written under the wrong letter (status is still
     'wrong').
+
+    Roots: √ applies to the next number, letter or bracket (√12, 2√3,
+    √(x + 1)). For root answers the result has is_simplified (2√3 yes, √12
+    no, 1/√2 no): report it separately from the status. √ of a negative
+    number returns not_real. Equations with two solutions: pass the student's
+    answer as written, e.g. "x = √5 of x = -√5" or "x = ±√5". Pythagoras: use
+    formula_substitution with "a² + b² = c²"; the positive length is taken
+    (assumed_positive), and misconception forgot_square_root means the student
+    gave c² instead of c.
 
     Notation: decimal comma (1,5), mixed numbers (1 3/4), ':' for division,
     '×' or '·' for multiplication. A period inside a number (1.000) is
     rejected as ambiguous.
 
-    task_instruction: optional, e.g. "Rond af op 2 decimalen."
+    task_instruction: optional, e.g. "Rond af op 2 decimalen." Pass it only
+    when the task itself asks for rounding.
 
     For step_validation, tell the teacher every invalid step: failed_step is
     the first one, additional_invalid_steps lists later independent errors,

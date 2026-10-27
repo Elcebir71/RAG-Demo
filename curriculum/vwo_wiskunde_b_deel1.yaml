@@ -1,0 +1,94 @@
+schema_version: 1
+map_name: vwo_wiskunde_b_deel1
+description: >-
+  Curriculum map for vwo wiskunde B, first book of the bovenbouw (usually leerjaar 4), built from the
+  table of contents of the method. Shows what verify_math can check per paragraph and what is missing.
+
+sources:
+  method:
+    title: "Getal & Ruimte (Noordhoff), vwo wiskunde B, leerboek deel 1 (FLEX)"
+    note: "Only chapter and paragraph titles are used as labels; no exercises or text from the method are stored."
+  exam_programme:
+    title: "CvTE syllabus wiskunde B vwo (per exam year)"
+    url: "https://examenblad.nl/2027/vwo/vakken/exacte-vakken/wiskunde-b-vwo"
+    note: "Syllabus domain codes are not filled in yet; add them from the official syllabus of the exam year the school uses."
+
+conventions:
+  typical_year: "Deel 1 of wiskunde B is usually used in vwo 4; the real year comes from the school's own planning."
+  verify_math_status: "supported | partial | planned | out_of_scope (same meaning as in vwo_onderbouw.yaml)"
+
+paragraphs:
+  # --- H1 Functies en grafieken ---
+  - id: B1.0
+    title: "Voorkennis: lineaire vergelijkingen en ongelijkheden"
+    typical_year: 4
+    verify_math: {status: supported, check_types: [equation_solution, inequality_solution], note: "Linear equations (T12) and linear inequalities (T17), also double inequalities. Interval notation is not read yet."}
+  - id: B1.1
+    title: "Lineaire functies"
+    verify_math: {status: partial, check_types: [formula_substitution, formula_rewrite], note: "Values and rewriting work; f(x) notation and 'line through two points' are planned."}
+  - id: B1.2
+    title: "Tweedegraadsfuncties en tweedegraadsvergelijkingen"
+    verify_math: {status: partial, check_types: [equation_solution, step_validation], note: "Rational roots work. abc-formule answers with √ need √ support; two-root answers 'x = 2 of x = -3' planned."}
+  - id: B1.3
+    title: "Werken met parameters"
+    verify_math: {status: planned, note: "'Voor welke p heeft ... twee oplossingen' needs conditions on a parameter (discriminant)."}
+  - id: B1.4
+    title: "Domein, bereik en modulusfuncties"
+    verify_math: {status: planned, note: "Needs |x| in the parser and interval answers for domain and range."}
+  - id: B1.5
+    title: "Grafisch-numeriek oplossen"
+    verify_math: {status: planned, note: "GR answers are decimals: needs a tolerance rule matching 'rond af op ... decimalen'."}
+
+  # --- H2 De afgeleide functie ---
+  - id: B2.0
+    title: "Voorkennis: snelheid"
+    verify_math: {status: supported, check_types: [unit_conversion, formula_substitution], note: "km/u, m/s and v = s / t."}
+  - id: B2.1
+    title: "Snelheden (gemiddelde snelheid, differentiequotiënt)"
+    verify_math: {status: planned, note: "Δy/Δx on an interval is arithmetic once f(x) notation exists."}
+  - id: B2.2
+    title: "Raaklijnen en hellinggrafieken"
+    verify_math: {status: planned, note: "Equation of a tangent line can be checked symbolically; reading a graph cannot."}
+  - id: B2.3
+    title: "Limiet en afgeleide"
+    verify_math: {status: planned, note: "New check type 'derivative': compare a student's f'(x) with SymPy's derivative. Needs a hard timeout first."}
+  - id: B2.4
+    title: "Toepassingen van de afgeleide (extremen, toenemend/afnemend)"
+    verify_math: {status: planned, note: "Extreme values from f'(x) = 0 are checkable; the reasoning about increase/decrease is partly interpretation."}
+
+  # --- H3 Meetkunde ---
+  - id: B3.0
+    title: "Voorkennis: goniometrische verhoudingen"
+    verify_math: {status: planned, note: "sin/cos/tan in degrees (onderbouw T31)."}
+  - id: B3.1
+    title: "Berekeningen in driehoeken"
+    verify_math: {status: planned, note: "Pythagoras and sin/cos/tan; the figure itself is out of scope."}
+  - id: B3.2
+    title: "Lengte, omtrek en oppervlakte"
+    verify_math: {status: partial, check_types: [formula_substitution], note: "Given formulas work (O = πr²); exact answers with √ need √ support."}
+  - id: B3.3
+    title: "Rekenen met wortels"
+    verify_math: {status: supported, check_types: [arithmetic, answer_equivalence, expression_equivalence], tests: [VM113, VM114, VM117, VM118, VM124], note: "√ notation, simplified form and root conditions."}
+  - id: B3.4
+    title: "Vergelijkingen in de meetkunde"
+    verify_math: {status: partial, check_types: [equation_solution], note: "The equation is checkable once written; setting it up from a figure is out of scope."}
+  - id: B3.5
+    title: "De sinusregel en de cosinusregel"
+    verify_math: {status: planned, note: "Formula substitution with sin/cos in degrees; ambiguous case of the sinusregel needs care."}
+
+  # --- H4 Vergelijkingen en herleidingen ---
+  - id: B4.0
+    title: "Voorkennis: stelsels lineaire vergelijkingen"
+    verify_math: {status: planned, note: "Onderbouw T16: new check type for two equations and 'x = 2, y = 3'."}
+  - id: B4.1
+    title: "Stelsels vergelijkingen"
+    verify_math: {status: planned, note: "Same check type as B4.0, also with non-linear equations."}
+  - id: B4.2
+    title: "Hogeregraadsvergelijkingen"
+    verify_math: {status: partial, check_types: [equation_solution, step_validation], note: "Whole and rational roots work; roots with √ or 'x = ... of x = ...' answers planned."}
+  - id: B4.3
+    title: "Regels voor het oplossen van vergelijkingen (A·B = 0, A² = B², ...)"
+    verify_math: {status: partial, check_types: [step_validation], note: "Each step is checked on its solution set; squaring both sides needs implication steps (⇒) with a 'controle'."}
+  - id: B4.4
+    title: "Herleidingen en inverse functies"
+    verify_math: {status: partial, check_types: [formula_rewrite, expression_equivalence], note: "Rewriting y = ... into x = ... works for linear cases; non-linear inverses (√, ln) planned."}
