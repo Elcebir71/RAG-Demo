@@ -109,7 +109,7 @@ topics:
       status: partial
       check_types: [arithmetic]
       tests: [VM032]
-      note: "Integer powers and ² ³ work; other superscripts (⁴, ⁵) and rules for powers with letters are not tested yet."
+      note: "Integer powers and all superscript exponents (²–⁹, ⁻) work; identities such as x⁴ · x³ = x⁷ via expression_equivalence (VM245). A check type for the rules for powers step by step is planned."
 
   - id: T04
     topic: "Wortels, wortels herleiden"
@@ -191,7 +191,7 @@ topics:
     hv: true
     typical_years: [2]
     evidence: ["KERN 2A 1.5", "M4A re5.6"]
-    verify_math: {status: planned, note: "3,2 · 10^5 may already parse; 10⁵ with superscript and the notation rule itself (1 ≤ a < 10) are not checked."}
+    verify_math: {status: supported, check_types: [scientific_notation, arithmetic], tests: [VM231, VM233, VM234, VM235, VM236, VM237, VM239, VM241, VM243], note: "Value and form a · 10^n with 1 ≤ |a| < 10; superscript exponents; significant figures."}
 
   - id: T11
     topic: "Meetnauwkeurigheid, significante cijfers"

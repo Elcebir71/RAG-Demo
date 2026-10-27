@@ -16,7 +16,8 @@ Scope:
 - linear inequalities in one letter, also double ones (-4 < 2x + 2 ≤ 8);
 - systems of two linear equations in two letters (2x + y = 7; x - y = 2);
 - function notation: f(x) = ... with a value f(-2) or an equation f(x) = g(x);
-- statistics of a list: gemiddelde, mediaan, modus, spreidingsbreedte.
+- statistics of a list: gemiddelde, mediaan, modus, spreidingsbreedte;
+- scientific notation (a · 10^n with 1 ≤ |a| < 10) and superscript exponents.
 
 This is a verification aid, not a proof of pedagogical correctness or of the
 semantic modelling of a word problem. See README.md for the limitations.
@@ -37,7 +38,7 @@ __all__ = ["verify_math", "MAX_INPUT_LENGTH", "MAX_TOKENS"]
 MAX_INPUT_LENGTH = 256
 MAX_TOKENS = 128
 MAX_NUMERIC_DIGITS = 32
-MAX_POWER_ABS = 20
+MAX_POWER_ABS = 30
 _SYMBOLS: dict[str, sp.Symbol] = {}
 
 
@@ -66,13 +67,20 @@ _LETTER_RUN_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]{3,}")
 # Dutch prose is classified separately as a semantic formalisation task.
 # Quotes, underscores and other executable-looking syntax are rejected before
 # the parser is invoked.
-_ALLOWED_CHARS = re.compile(r"^[0-9A-Za-zπ√%+\-−–—*/:×·()^²³=,\.\s]*$")
+_ALLOWED_CHARS = re.compile(r"^[0-9A-Za-zπ√%+\-−–—*/:×·()^⁰¹²³⁴⁵⁶⁷⁸⁹⁻=,\.\s]*$")
+# Superscript exponents (10⁴, 10⁻³, x⁴) are rewritten as ^(...) before tokenizing.
+_SUPERSCRIPT_RE = re.compile(r"⁻?[⁰¹²³⁴⁵⁶⁷⁸⁹]+")
+_SUPERSCRIPT_IN = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻", "0123456789-")
+
+
+def _expand_superscripts(text: str) -> str:
+    return _SUPERSCRIPT_RE.sub(lambda match: "^(" + match.group(0).translate(_SUPERSCRIPT_IN) + ")", text)
 _SUSPICIOUS_CHARS = set("_'\"[]{}!@#$&`\\;")
 # 'p% van q' is the only place where the word 'van' is allowed: it means p% · q.
 _PERCENT_OF_RE = re.compile(r"%\s*van\b", re.IGNORECASE)
 # 80 + 15% means 92 on a calculator but 80,15 in algebra: never guess.
 _AMBIGUOUS_PERCENT_RE = re.compile(
-    r"(?<=[0-9A-Za-z)%π²³])\s*[+\-−–]\s*\d+(?:,\d+)?\s*%"
+    r"(?<=[0-9A-Za-z)%π⁰¹²³⁴⁵⁶⁷⁸⁹])\s*[+\-−–]\s*\d+(?:,\d+)?\s*%"
     r"|\d\s*%\s*[+\-−–]\s*[0-9A-Za-z(π]"
 )
 
@@ -196,7 +204,8 @@ def _tokenize(text: str) -> list[_Token]:
     """Tokenise a restricted expression without eval/parse_expr."""
     # Unicode operator normalisation is explicit and local.
     text = _normalize_percent_phrases(text)
-    text = text.translate(str.maketrans({"−": "-", "–": "-", "—": "-", "×": "*", "·": "*", "²": "^2", "³": "^3"}))
+    text = _expand_superscripts(text)
+    text = text.translate(str.maketrans({"−": "-", "–": "-", "—": "-", "×": "*", "·": "*"}))
     tokens: list[_Token] = []
     pos = 0
     while pos < len(text):
@@ -2289,6 +2298,145 @@ def _verify_statistics(input_value: str, submitted_answer: str | None,
     return _result("wrong", check_type, input_value, **fields)
 
 
+# --- Scientific notation ------------------------------------------------------
+_SCI_FORM_RE = re.compile(r"\s*(-?\d+(?:,\d+)?)\s*[·×*]\s*10\s*\^\s*\(?\s*([+-]?\d+)\s*\)?\s*")
+_CALCULATOR_FORM_RE = re.compile(r"\s*(-?\d+(?:,\d+)?)\s*[Ee]\s*([+-]?\d+)\s*")
+_SUPERSCRIPT_OUT = str.maketrans("0123456789-", "⁰¹²³⁴⁵⁶⁷⁸⁹⁻")
+
+
+def _decimal_of(value: sp.Expr) -> Decimal | None:
+    """The exact decimal of a rational with a terminating expansion, else None."""
+    if not value.is_Rational:
+        return None
+    q = int(value.q)
+    while q % 2 == 0:
+        q //= 2
+    while q % 5 == 0:
+        q //= 5
+    if q != 1:
+        return None
+    with localcontext() as ctx:
+        ctx.prec = 80
+        return Decimal(int(value.p)) / Decimal(int(value.q))
+
+
+def _power_of_ten(value: sp.Expr) -> int:
+    """n with 10^n ≤ |value| < 10^(n+1)."""
+    with localcontext() as ctx:
+        ctx.prec = 60
+        if value.is_Rational:
+            decimal_value = Decimal(int(value.p)) / Decimal(int(value.q))
+        else:
+            decimal_value = Decimal(str(sp.N(value, 60)))
+        return decimal_value.adjusted()
+
+
+def _scientific_text(mantissa: Decimal, exponent: int) -> str:
+    return f"{format(mantissa, 'f').replace('.', ',')} · 10{str(exponent).translate(_SUPERSCRIPT_OUT)}"
+
+
+def _scientific_form(value: sp.Expr, places: int | None) -> str | None:
+    """'4,5 · 10⁴' for 45000; rounded when asked; None when no exact finite form exists."""
+    if places is not None:
+        rounded = _round_decimal(value, places)
+        if rounded == 0:
+            return None
+        exponent = rounded.adjusted()
+        return _scientific_text(rounded.scaleb(-exponent), exponent)
+    exact = _decimal_of(value)
+    if exact is None:
+        return None
+    exponent = exact.adjusted()
+    return _scientific_text(exact.scaleb(-exponent).normalize(), exponent)
+
+
+def _comma_number(text: str) -> sp.Rational:
+    return sp.Rational(text.replace(",", "."))
+
+
+def _verify_scientific_notation(input_value: str, submitted_answer: str | None,
+                                task_instruction: str | None = None) -> dict[str, Any]:
+    check_type = "scientific_notation"
+    ok, reason = _preflight(input_value)
+    if not ok:
+        return _unverifiable(check_type, input_value, _MathInputError(reason or "disallowed_characters_or_syntax"))
+    try:
+        value = _numeric_value(input_value)
+        places = _parse_rounding_places(task_instruction)
+        if value == 0:
+            raise _MathInputError("unsupported_math_form")
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc, parser_invoked=True)
+
+    exponent_expected = _power_of_ten(value)
+    fields: dict[str, Any] = {"exact_value": _serialize_exact(value), "parser_invoked": True}
+    form = _scientific_form(value, places)
+    if form is not None:
+        fields["scientific_form"] = form
+    if submitted_answer is None or not str(submitted_answer).strip():
+        return _result("unverifiable", check_type, input_value, **fields, reason="no_claim_to_check",
+                       explanation_nl=f"{_REASON_NL['no_claim_to_check']}"
+                                      + (f" In wetenschappelijke notatie: {form}." if form else ""))
+    fields["submitted_answer"] = submitted_answer
+    expected_text = f" Juist is {form}." if form else ""
+
+    def same(candidate: sp.Expr) -> bool:
+        return _rounded_compare(value, candidate, places, "")[0]
+
+    answer_text = _expand_superscripts(submitted_answer.replace("−", "-").replace("–", "-"))
+    calculator = _CALCULATOR_FORM_RE.fullmatch(answer_text)
+    if calculator:
+        mantissa, exponent = _comma_number(calculator.group(1)), int(calculator.group(2))
+        fields["value_correct"] = same(mantissa * sp.Integer(10) ** exponent)
+        fields["misconception"] = "calculator_notation"
+        fields["explanation_nl"] = ("Dit is de notatie van de rekenmachine (E). Schrijf a · 10^n, "
+                                    f"bijvoorbeeld 4,5 · 10⁴.{expected_text}")
+        return _result("wrong", check_type, input_value, **fields)
+
+    scientific = _SCI_FORM_RE.fullmatch(answer_text)
+    if scientific:
+        mantissa, exponent = _comma_number(scientific.group(1)), int(scientific.group(2))
+        if abs(exponent) > MAX_POWER_ABS:
+            return _unverifiable(check_type, input_value, _MathInputError("unsupported_math_form"), parser_invoked=True)
+        answer_value = mantissa * sp.Integer(10) ** exponent
+        normalized = 1 <= abs(mantissa) < 10
+    else:
+        try:
+            answer_value = _numeric_value(submitted_answer)
+        except _MathInputError as exc:
+            return _unverifiable(check_type, input_value, exc, parser_invoked=True)
+        mantissa, exponent = None, None
+        normalized = 1 <= abs(answer_value) < 10  # 4,5 is 4,5 · 10⁰
+
+    correct, rounding_fields = _rounded_compare(value, answer_value, places, "")
+    fields.update(rounding_fields)
+    fields["value_correct"] = correct
+    if correct and normalized:
+        fields["explanation_nl"] = f"Het antwoord klopt en staat in wetenschappelijke notatie.{expected_text}"
+        return _result("verified", check_type, input_value, **fields)
+    if correct and scientific:
+        fields["misconception"] = "not_normalized"
+        fields["explanation_nl"] = ("De waarde klopt, maar het getal voor de macht van 10 moet tussen 1 en 10 liggen."
+                                    f"{expected_text}")
+        return _result("wrong", check_type, input_value, **fields)
+    if correct:
+        fields["misconception"] = "not_scientific_notation"
+        fields["explanation_nl"] = f"De waarde klopt, maar het antwoord staat niet in wetenschappelijke notatie.{expected_text}"
+        return _result("wrong", check_type, input_value, **fields)
+
+    explanation = f"Het antwoord klopt niet.{expected_text}"
+    if scientific and normalized and same(mantissa * sp.Integer(10) ** exponent_expected):
+        if abs(exponent - exponent_expected) == 1:
+            fields["misconception"] = "exponent_off_by_one"
+            explanation = f"Het getal voor de macht klopt, maar de exponent is er één naast.{expected_text}"
+        elif exponent == -exponent_expected and exponent != 0:
+            fields["misconception"] = "exponent_sign_wrong"
+            explanation = ("Het getal voor de macht klopt, maar het teken van de exponent is fout: "
+                           f"bij een getal kleiner dan 1 is de exponent negatief.{expected_text}")
+    fields["explanation_nl"] = explanation
+    return _result("wrong", check_type, input_value, **fields)
+
+
 def verify_math(
     check_type: str,
     input: str = "",
@@ -2304,7 +2452,7 @@ def verify_math(
         check_type: one of arithmetic, answer_equivalence, expression_equivalence,
             equation_solution, step_validation, formula_substitution, formula_rewrite,
             unit_conversion, percentage_change, inequality_solution, system_solution,
-            function_notation, statistics.
+            function_notation, statistics, scientific_notation.
         input: expression, equation or quantity; not used to infer a word problem's meaning.
         submitted_answer: the student's answer to compare, exactly as written.
         steps: explicit equation steps for step_validation. When omitted, an
@@ -2322,7 +2470,7 @@ def verify_math(
     allowed_types = {"arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
                      "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
                      "percentage_change", "inequality_solution", "system_solution", "function_notation",
-                     "statistics"}
+                     "statistics", "scientific_notation"}
     if check_type not in allowed_types:
         return _unverifiable(str(check_type), input, _MathInputError("unsupported_math_form"))
     if not isinstance(input, str):
@@ -2352,6 +2500,8 @@ def verify_math(
         return _verify_function_notation(input, submitted_answer, task_instruction, variable)
     if check_type == "statistics":
         return _verify_statistics(input, submitted_answer, task_instruction)
+    if check_type == "scientific_notation":
+        return _verify_scientific_notation(input, submitted_answer, task_instruction)
     return _verify_steps(input, steps, variable)
 
 
@@ -2364,7 +2514,7 @@ if __name__ == "__main__":
     cli.add_argument("check_type", choices=["arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
                                             "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
                                             "percentage_change", "inequality_solution", "system_solution",
-                                            "function_notation", "statistics"])
+                                            "function_notation", "statistics", "scientific_notation"])
     cli.add_argument("input", help="Expression, equation, quantity, or arrow-delimited steps")
     cli.add_argument("--answer")
     cli.add_argument("--instruction")

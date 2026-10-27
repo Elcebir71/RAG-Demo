@@ -31,6 +31,7 @@ CheckType = Literal[
     "system_solution",
     "function_notation",
     "statistics",
+    "scientific_notation",
 ]
 
 
@@ -118,6 +119,13 @@ def verify_math_tool(
         decimal comma). Modus answers: "7", "5 en 8" or "geen modus".
         Misconceptions: median_not_sorted, median_even_count,
         confused_with_median, confused_with_mean.
+      - scientific_notation: input is a number or a calculation, e.g. "45000"
+        or "(4 · 10³) × (5 · 10²)"; submitted_answer must be a · 10^n with
+        1 ≤ |a| < 10, e.g. "4,5 · 10⁴" or "4,5 × 10^4". Misconceptions:
+        not_normalized (45 · 10³), not_scientific_notation (45000),
+        calculator_notation (4,5E4), exponent_off_by_one, exponent_sign_wrong.
+        value_correct says whether the number itself is right;
+        scientific_form gives the expected answer.
 
     Percentages elsewhere: 25% = 25/100, "25% van 80" = 20. "80 + 15%" is
     ambiguous (calculator 92, algebra 80,15) and returns ambiguous_percentage:
@@ -144,6 +152,8 @@ def verify_math_tool(
     formula_substitution with "a² + b² = c²"; the positive length is taken
     (assumed_positive), and misconception forgot_square_root means the student
     gave c² instead of c.
+
+    Superscript exponents work everywhere: 10⁴, 10⁻³, x⁴.
 
     Notation: decimal comma (1,5), mixed numbers (1 3/4), ':' for division,
     '×' or '·' for multiplication. ':' and '/' are read strictly from left

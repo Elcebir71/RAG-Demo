@@ -21,6 +21,7 @@ conventions:
     - system_solution         # two linear equations in two letters; answer like "x = 3, y = 1" or "x = 3 en y = 1"
     - function_notation       # f(x) = ... definitions plus one task: a value f(-2), or an equation f(x) = 8 / f(x) = g(x)
     - statistics              # "gemiddelde: 4, 7, 7, 9, 3"; also mediaan, modus, spreidingsbreedte
+    - scientific_notation     # value or calculation; the answer must be a · 10^n with 1 ≤ |a| < 10
     - percentage_change       # percentage increase/decrease, input "old -> new", answer like "25%", "-20%" or "20% afname"
   inequalities: >-
     Signs <, >, ≤, ≥ (also <= and >=). One letter, linear for now; a double inequality like
@@ -72,6 +73,13 @@ conventions:
     with half up, like the decimal rounding: 2/3 → 0,667, 12345 → 12300, 0,00075 → 0,0008,
     9,996 → 10,0. The result reports significant_figures instead of decimal_places. Like decimal
     rounding, the value is compared: 2,3 and 2,30 are the same number.
+  scientific_notation: >-
+    Superscript exponents are read everywhere: 10⁴, 10⁻³, x⁴. In scientific_notation the input is a number
+    or a calculation and the answer must have the form a · 10^n with 1 ≤ |a| < 10 (·, × or * and ^ or
+    superscripts). Misconceptions: not_normalized (45 · 10³, value right), not_scientific_notation (45000,
+    value right), calculator_notation (4,5E4), exponent_off_by_one (4,5 · 10³ for 45000) and
+    exponent_sign_wrong (3,2 · 10⁴ for 0,00032). value_correct tells whether the number itself is right.
+    scientific_form gives the expected answer.
   roots: >-
     √ applies to the next number, letter or bracket: √12 + 1 is (√12) + 1, √(x + 1) needs brackets.
     A root form is simplified when no square factor is left under the root (2√3, not √12) and no
@@ -2003,4 +2011,148 @@ cases:
     input: "5 - 5"
     submitted_answer: "0"
     task_instruction: "Rond af op 2 significante cijfers."
+    expected: {status: verified}
+
+  # --- Scientific notation and superscript exponents (tests written before the code, 27 Oct 2026) ---
+  - id: VM231
+    title: Large number in scientific notation
+    check_type: scientific_notation
+    curriculum_scope: vwo1_candidate
+    input: "45000"
+    submitted_answer: "4,5 · 10⁴"
+    expected: {status: verified, exact_value: "45000"}
+
+  - id: VM232
+    title: Times sign and caret
+    check_type: scientific_notation
+    curriculum_scope: vwo1_candidate
+    input: "45000"
+    submitted_answer: "4,5 × 10^4"
+    expected: {status: verified}
+
+  - id: VM233
+    title: Small number with a negative exponent
+    check_type: scientific_notation
+    curriculum_scope: vwo1_candidate
+    input: "0,00032"
+    submitted_answer: "3,2 · 10⁻⁴"
+    expected: {status: verified}
+
+  - id: VM234
+    title: Mantissa not between 1 and 10
+    check_type: scientific_notation
+    curriculum_scope: vwo1_candidate
+    input: "45000"
+    submitted_answer: "45 · 10³"
+    expected: {status: wrong, misconception: not_normalized, value_correct: true}
+
+  - id: VM235
+    title: Exponent one too small
+    check_type: scientific_notation
+    curriculum_scope: vwo1_candidate
+    input: "45000"
+    submitted_answer: "4,5 · 10³"
+    expected: {status: wrong, misconception: exponent_off_by_one, value_correct: false}
+
+  - id: VM236
+    title: Exponent with the wrong sign
+    check_type: scientific_notation
+    curriculum_scope: vwo1_candidate
+    input: "0,00032"
+    submitted_answer: "3,2 · 10⁴"
+    expected: {status: wrong, misconception: exponent_sign_wrong}
+
+  - id: VM237
+    title: Calculator notation
+    check_type: scientific_notation
+    curriculum_scope: vwo1_candidate
+    input: "45000"
+    submitted_answer: "4,5E4"
+    expected: {status: wrong, misconception: calculator_notation, value_correct: true}
+
+  - id: VM238
+    title: Product in scientific notation
+    check_type: scientific_notation
+    curriculum_scope: vwo1_candidate
+    input: "(3 · 10⁴) × (2 · 10⁵)"
+    submitted_answer: "6 · 10⁹"
+    expected: {status: verified}
+
+  - id: VM239
+    title: Product that needs normalizing
+    check_type: scientific_notation
+    curriculum_scope: vwo1_candidate
+    input: "(4 · 10³) × (5 · 10²)"
+    submitted_answer: "2 · 10⁶"
+    expected: {status: verified}
+
+  - id: VM240
+    title: Product left as 20 · 10⁵
+    check_type: scientific_notation
+    curriculum_scope: vwo1_candidate
+    input: "(4 · 10³) × (5 · 10²)"
+    submitted_answer: "20 · 10⁵"
+    expected: {status: wrong, misconception: not_normalized, value_correct: true}
+
+  - id: VM241
+    title: Scientific notation with significant figures
+    check_type: scientific_notation
+    curriculum_scope: vwo1_candidate
+    input: "123456"
+    submitted_answer: "1,23 · 10⁵"
+    task_instruction: "Rond af op 3 significante cijfers."
+    expected: {status: verified, significant_figures: 3}
+
+  - id: VM242
+    title: Ordinary number instead of scientific notation
+    check_type: scientific_notation
+    curriculum_scope: vwo1_candidate
+    input: "45000"
+    submitted_answer: "45000"
+    expected: {status: wrong, misconception: not_scientific_notation, value_correct: true}
+
+  - id: VM243
+    title: Superscript exponent in arithmetic
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "4,5 · 10⁴"
+    submitted_answer: "45000"
+    expected: {status: verified}
+
+  - id: VM244
+    title: Superscript 5
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "2⁵"
+    submitted_answer: "32"
+    expected: {status: verified}
+
+  - id: VM245
+    title: Superscripts in an identity
+    check_type: expression_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "x⁴ · x³ = x⁷"
+    expected: {status: verified}
+
+  - id: VM246
+    title: No answer gives the expected form
+    check_type: scientific_notation
+    curriculum_scope: vwo1_candidate
+    input: "45000"
+    expected: {status: unverifiable, reason: no_claim_to_check, scientific_form: "4,5 · 10⁴"}
+
+  - id: VM247
+    title: Large exponent (Avogadro)
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "6,02 · 10²³ × 2"
+    submitted_answer: "1,204 · 10²⁴"
+    expected: {status: verified}
+
+  - id: VM248
+    title: Negative number
+    check_type: scientific_notation
+    curriculum_scope: vwo1_candidate
+    input: "-0,05"
+    submitted_answer: "-5 · 10⁻²"
     expected: {status: verified}

@@ -419,6 +419,7 @@ so a teacher sees the AI answer and the verification result separately.
 | `system_solution` | `2x + y = 7; x - y = 2`, answer `x = 3, y = 1` | two linear equations in two letters, incl. `geen oplossing` / `oneindig veel oplossingen`; flags swapped values and answers that fit only one equation |
 | `function_notation` | `f(x) = 2x² - 3x + 1; f(-2)`, answer `15`; `f(x) = 2x + 1; g(x) = -x + 7; f(x) = g(x)`, answer `x = 2` | function values and equations with f(x) notation; flags `-2²` instead of `(-2)²` |
 | `statistics` | `gemiddelde: 4, 7, 7, 9, 3` = `6`; `mediaan: 3, 8, 5, 10` = `6,5`; `modus: 2, 5, 5, 8, 8, 1` = `5 en 8` | mean, median, mode and range; flags an unsorted median and a single middle value |
+| `scientific_notation` | `45000` → `4,5 · 10⁴`; `(4 · 10³) × (5 · 10²)` → `2 · 10⁶` | value and form a · 10^n (1 ≤ \|a\| < 10); flags `45 · 10³`, `4,5E4` and a wrong exponent |
 | `percentage_change` | `80 → 100` = `25%`; `100 → 80` = `-20%` or `20% afname` | percentage increase/decrease; flags dividing by the new value |
 | `unit_conversion` | `72 km/u` → `20 m/s`, `1 dm³` → `1 L` | exact conversions for metric length, mass, area, volume (litres included, `ml` or `mL`), time (`u` or `h`) and speed (`km/u`); rounding only when the task asks for it |
 
@@ -426,7 +427,7 @@ Every result has one of three statuses: `verified`, `wrong` or `unverifiable`.
 When the tool cannot check something reliably, it says so instead of guessing.
 
 **Dutch school notation:** decimal comma (`1,5`), mixed numbers (`1 3/4`), `:` for division,
-`×` / `·`, Unicode minus, `²`, percentages (`25%`, `25% van 80`), roots (`√12`, `2√3`, `√(x + 1)`;
+`×` / `·`, Unicode minus, superscript exponents (`²`, `10⁴`, `10⁻³`), percentages (`25%`, `25% van 80`), roots (`√12`, `2√3`, `√(x + 1)`;
 `is_simplified` says whether a root form is finished, and `√(x + 1)` adds the condition `x + 1 ≥ 0`). `:` and `/` are read from left to right (`2/3 : 4/5` = 1/30; write `2/3 : (4/5)`). Rounding only when the task asks for it, to decimals (`Rond af op 2 decimalen`) or significant figures (`Rond af op 3 significante cijfers`), half up. `1.000` is rejected as ambiguous
 (thousands separator or decimal), and so is `80 + 15%` (92 on a calculator, 80,15 in algebra).
 Formula rewrites retain nonzero conditions from variable denominators; equation-solving and
@@ -444,7 +445,7 @@ verify_math("step_validation", steps=["-2(x - 3) = 4", "-2x - 6 = 4", "-2x = 10"
 # {'status': 'wrong', 'failed_step': 2, 'steps_consistent_after_error': [3, 4], ...}
 ```
 
-**Tests:** 229 acceptance cases in `tests/verify_math_cases.yaml` (correct and deliberately wrong
+**Tests:** 247 acceptance cases in `tests/verify_math_cases.yaml` (correct and deliberately wrong
 solutions, unsafe input, ambiguous notation, denominator conditions and unit conversions) plus unit tests:
 `python -m pytest -q`.
 
