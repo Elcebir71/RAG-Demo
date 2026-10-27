@@ -24,6 +24,8 @@ conventions:
     - scientific_notation     # value or calculation; the answer must be a · 10^n with 1 ≤ |a| < 10
     - number_theory           # "ggd: 12, 18", "kgv: 4, 6", "priemfactoren: 360", "delers: 12", "priemgetal: 91"
     - counting                # "met volgorde, zonder terugleggen: 10, 3"; order and replacement must both be stated
+    - angle_sum, shape_formula, scale_factor, trig_ratio, sine_rule, cosine_rule, point_distance, midpoint
+      # geometry: forwarded to geometry.verify_geometry; substitutions are passed as its values
     - percentage_change       # percentage increase/decrease, input "old -> new", answer like "25%", "-20%" or "20% afname"
   inequalities: >-
     Signs <, >, ≤, ≥ (also <= and >=). One letter, linear for now; a double inequality like
@@ -2469,3 +2471,64 @@ cases:
     input: "met volgorde, zonder terugleggen: 4, 4"
     submitted_answer: "4!"
     expected: {status: verified}
+
+  # --- Geometry through verify_math (integration, 27 Oct 2026) ---
+  - id: VM286
+    title: Geometry angle sum through verify_math
+    check_type: angle_sum
+    curriculum_scope: vwo1_candidate
+    input: "driehoek: 35°, 72°"
+    submitted_answer: "73°"
+    expected: {status: verified, exact_value: "73"}
+
+  - id: VM287
+    title: Geometry shape formula with substitutions as values
+    check_type: shape_formula
+    curriculum_scope: vwo1_candidate
+    input: "oppervlakte cirkel"
+    substitutions: {r: "3"}
+    submitted_answer: "9π"
+    expected: {status: verified, exact_value: "9*pi"}
+
+  - id: VM288
+    title: Geometry sine ratio through verify_math
+    check_type: trig_ratio
+    curriculum_scope: vwo1_candidate
+    input: "sin(A) = overstaande / schuine zijde"
+    substitutions: {A: "30°", "schuine zijde": "10"}
+    submitted_answer: "5"
+    expected: {status: verified}
+
+  - id: VM289
+    title: Geometry distance misconception through verify_math
+    check_type: point_distance
+    curriculum_scope: vwo1_candidate
+    input: "A(1, 2), B(4, 6)"
+    submitted_answer: "7"
+    expected: {status: wrong, misconception: manhattan_distance}
+
+  - id: VM290
+    title: Geometry midpoint through verify_math
+    check_type: midpoint
+    curriculum_scope: vwo1_candidate
+    input: "A(1, 2), B(5, 6)"
+    submitted_answer: "(3, 4)"
+    expected: {status: verified}
+
+  - id: VM291
+    title: Geometry scale factor misconception through verify_math
+    check_type: scale_factor
+    curriculum_scope: vwo1_candidate
+    input: "oppervlakte"
+    substitutions: {k: "3", origineel: "4"}
+    submitted_answer: "12"
+    expected: {status: wrong, misconception: area_scaled_by_k}
+
+  - id: VM292
+    title: Geometry cosine rule through verify_math
+    check_type: cosine_rule
+    curriculum_scope: vwo4_wiskunde_b
+    input: "a² = b² + c² - 2bc · cos(A)"
+    substitutions: {b: "5", c: "6", A: "60°"}
+    submitted_answer: "a = √31"
+    expected: {status: verified, exact_value: "sqrt(31)"}

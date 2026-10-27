@@ -34,6 +34,14 @@ CheckType = Literal[
     "scientific_notation",
     "number_theory",
     "counting",
+    "angle_sum",
+    "shape_formula",
+    "scale_factor",
+    "trig_ratio",
+    "sine_rule",
+    "cosine_rule",
+    "point_distance",
+    "midpoint",
 ]
 
 
@@ -143,6 +151,25 @@ def verify_math_tool(
         the tool returns ambiguous_counting. The answer may be a calculation
         ("10 · 9 · 8", "4!"). Misconceptions: with_replacement_used,
         without_replacement_used, order_ignored, order_counted.
+
+    Geometry (the tool never reads a figure: you give the shape, the
+    relation and the sizes; sizes go in 'substitutions'):
+      - angle_sum: "driehoek: 35°, 72°" → answer "73°"; also vierhoek,
+        gestrekte hoek, volle hoek. Every angle needs °.
+      - shape_formula: "oppervlakte cirkel", substitutions {"r": "3"} →
+        "9π". Quantities omtrek, oppervlakte, inhoud; shapes rechthoek,
+        vierkant, driehoek, parallellogram, trapezium, cirkel, balk, kubus,
+        cilinder, prisma, piramide, kegel, bol. Units optional ("8 cm"); the
+        answer unit must match (cm → cm²).
+      - scale_factor: "oppervlakte", {"k": "3", "origineel": "4"} → "36".
+      - trig_ratio: "sin(A) = overstaande / schuine zijde",
+        {"A": "30°", "schuine zijde": "10"} → "5"; or the sides to find
+        the angle. Degrees only.
+      - sine_rule: "a / sin(A) = b / sin(B)", cosine_rule:
+        "a² = b² + c² - 2bc · cos(A)", with three known values. The
+        ambiguous case returns ambiguous_triangle: tell the teacher.
+      - point_distance / midpoint: "A(1, 2), B(4, 6)"; with decimal
+        commas use ';' inside a point: "A(1,5; 2)".
 
     Percentages elsewhere: 25% = 25/100, "25% van 80" = 20. "80 + 15%" is
     ambiguous (calculator 92, algebra 80,15) and returns ambiguous_percentage:

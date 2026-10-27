@@ -19,7 +19,9 @@ Scope:
 - statistics of a list: gemiddelde, mediaan, modus, spreidingsbreedte;
 - scientific notation (a · 10^n with 1 ≤ |a| < 10) and superscript exponents;
 - divisors, multiples and primes: ggd, kgv, priemfactoren, delers, priemgetal;
-- counting: n!, n nCr k ('n boven k'), and choosing with or without order and replacement.
+- counting: n!, n nCr k ('n boven k'), and choosing with or without order and replacement;
+- geometry check types, forwarded to geometry.verify_geometry (angle sums, shape formulas,
+  scale factor, sin/cos/tan, sine and cosine rule, distance and midpoint).
 
 This is a verification aid, not a proof of pedagogical correctness or of the
 semantic modelling of a word problem. See README.md for the limitations.
@@ -2739,6 +2741,13 @@ def _verify_counting(input_value: str, submitted_answer: str | None) -> dict[str
     return _result("wrong", check_type, input_value, **fields)
 
 
+# Geometry lives in its own package; verify_math forwards these check types to it.
+GEOMETRY_CHECK_TYPES = frozenset({
+    "angle_sum", "shape_formula", "scale_factor", "trig_ratio",
+    "sine_rule", "cosine_rule", "point_distance", "midpoint",
+})
+
+
 def verify_math(
     check_type: str,
     input: str = "",
@@ -2754,7 +2763,8 @@ def verify_math(
         check_type: one of arithmetic, answer_equivalence, expression_equivalence,
             equation_solution, step_validation, formula_substitution, formula_rewrite,
             unit_conversion, percentage_change, inequality_solution, system_solution,
-            function_notation, statistics, scientific_notation, number_theory, counting.
+            function_notation, statistics, scientific_notation, number_theory, counting,
+            and the geometry check types in GEOMETRY_CHECK_TYPES.
         input: expression, equation or quantity; not used to infer a word problem's meaning.
         submitted_answer: the student's answer to compare, exactly as written.
         steps: explicit equation steps for step_validation. When omitted, an
@@ -2765,7 +2775,8 @@ def verify_math(
             one letter (equation_solution, step_validation, inequality_solution,
             function_notation).
         substitutions: values to fill in for formula_substitution, e.g.
-            ``{"p": "3"}``.
+            ``{"p": "3"}``; for geometry check types these are the sizes,
+            e.g. ``{"r": "3"}`` or ``{"A": "30°", "schuine zijde": "10"}``.
 
     Returns a dictionary with status in {verified, wrong, unverifiable}.
     """
@@ -2773,6 +2784,10 @@ def verify_math(
                      "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
                      "percentage_change", "inequality_solution", "system_solution", "function_notation",
                      "statistics", "scientific_notation", "number_theory", "counting"}
+    if check_type in GEOMETRY_CHECK_TYPES:
+        # Imported here: geometry imports helpers from this module.
+        from geometry import verify_geometry
+        return verify_geometry(check_type, input, submitted_answer, task_instruction, values=substitutions)
     if check_type not in allowed_types:
         return _unverifiable(str(check_type), input, _MathInputError("unsupported_math_form"))
     if not isinstance(input, str):
@@ -2821,7 +2836,7 @@ if __name__ == "__main__":
                                             "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
                                             "percentage_change", "inequality_solution", "system_solution",
                                             "function_notation", "statistics", "scientific_notation",
-                                            "number_theory", "counting"])
+                                            "number_theory", "counting", *sorted(GEOMETRY_CHECK_TYPES)])
     cli.add_argument("input", help="Expression, equation, quantity, or arrow-delimited steps")
     cli.add_argument("--answer")
     cli.add_argument("--instruction")

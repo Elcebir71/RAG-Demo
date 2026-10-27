@@ -169,10 +169,10 @@ topics:
     evidence: ["M4A me4.1-4.5, me6.1-6.5, me7.3-7.4"]
     method_chapter: "H1 Figuren"
     verify_math:
-      status: partial
-      check_types: [formula_substitution]
-      tests: [VM070]
-      note: "Works when the formula is given (O = πr²). Choosing the right formula from a figure is out of scope; formulas with √ need T04."
+      status: supported
+      check_types: [shape_formula, formula_substitution]
+      tests: [VM070, VM287, GEO018, GEO021, GEO024, GEO027, GEO105]
+      note: "Named formulas for 13 shapes (omtrek, oppervlakte, inhoud) with unit checks. Choosing the shape or the sizes from a figure is out of scope; the caller gives them."
 
   - id: T09
     topic: "Algebraïsche uitdrukkingen herleiden (haakjes wegwerken, gelijksoortige termen)"
@@ -367,7 +367,7 @@ topics:
     hv: false
     typical_years: [1, 2]
     evidence: ["KERN 1A 2.4-2.5", "KERN 2B 7.2-7.5 (7.5 VWO)", "M4A me5.1-5.3, me7.6"]
-    verify_math: {status: partial, note: "Only the arithmetic: scale factor k, area × k², volume × k³. Showing similarity from a figure is out of scope."}
+    verify_math: {status: partial, check_types: [scale_factor], tests: [VM291, GEO035, GEO037, GEO039], note: "Scale factor k for length, area (k²) and volume (k³) with misconceptions. Showing similarity from a figure is out of scope."}
 
   - id: T29
     topic: "Hoeken en hoekeigenschappen (hoekensom, overstaande en F/Z-hoeken)"
@@ -377,7 +377,7 @@ topics:
     typical_years: [1]
     method_chapter: "H5 Lijnen en hoeken"
     evidence: ["KERN 1A 2.2", "KERN 1B 7.3-7.4", "M4A me3.1-3.5"]
-    verify_math: {status: planned, note: "Angle sums are plain arithmetic; the ° sign is not read yet. Finding which angles are equal needs the figure."}
+    verify_math: {status: partial, check_types: [angle_sum], tests: [VM286, GEO001, GEO004, GEO008, GEO010], note: "Angle sums of driehoek, vierhoek, gestrekte and volle hoek with °. Which angles are equal (F-, Z-, overstaande hoeken) comes from the figure and is out of scope."}
 
   - id: T30
     topic: "Stelling van Pythagoras (vwo: ook de omgekeerde stelling)"
@@ -398,7 +398,7 @@ topics:
     hv: true
     typical_years: [3]
     evidence: ["Not in KERN 1A-2B; voorkennis in G&R vwo wiskunde B deel 1, H3"]
-    verify_math: {status: planned, note: "Needs sin/cos/tan in degrees and the GR rounding conventions."}
+    verify_math: {status: supported, check_types: [trig_ratio], tests: [VM288, GEO046, GEO050, GEO051, GEO053, GEO096], note: "sin, cos, tan in degrees, also the angle from two sides; rounding only on request; flags sin and cos swapped."}
 
   # --- Kerndoel 14-17: denk-werkwijzen, wiskundetaal, attitude, toepassing ---
   - id: T32
@@ -472,7 +472,7 @@ topics:
     hv: false
     typical_years: [1]
     evidence: ["KERN 1A 3.1", "M4A me1.6"]
-    verify_math: {status: planned, tests: [VM028], note: "(1,5) is rejected today as ambiguous (point or 1,5). Needs a check type where the input says it is a point."}
+    verify_math: {status: supported, check_types: [point_distance, midpoint], tests: [VM028, VM289, VM290, GEO069, GEO076, GEO081, GEO089], note: "Distance and midpoint of two points; with decimal commas a point uses ';' (2,5; 4). A bare (1,5) stays ambiguous."}
 
   - id: T40
     topic: "Exponentiële groei en verval: groeifactor, groeipercentage, exponentiële vergelijkingen"

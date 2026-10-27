@@ -59,13 +59,13 @@ paragraphs:
   # --- H3 Meetkunde ---
   - id: B3.0
     title: "Voorkennis: goniometrische verhoudingen"
-    verify_math: {status: planned, note: "sin/cos/tan in degrees (onderbouw T31)."}
+    verify_math: {status: supported, check_types: [trig_ratio], note: "sin/cos/tan in degrees (onderbouw T31)."}
   - id: B3.1
     title: "Berekeningen in driehoeken"
-    verify_math: {status: planned, note: "Pythagoras and sin/cos/tan; the figure itself is out of scope."}
+    verify_math: {status: partial, check_types: [formula_substitution, trig_ratio], note: "Pythagoras (formula given) and sin/cos/tan work; Pythagoras with a named right angle is planned (geometry G7); the figure itself is out of scope."}
   - id: B3.2
     title: "Lengte, omtrek en oppervlakte"
-    verify_math: {status: partial, check_types: [formula_substitution], note: "Given formulas work (O = πr²); exact answers with √ need √ support."}
+    verify_math: {status: supported, check_types: [shape_formula, formula_substitution], note: "Named shape formulas and given formulas, exact answers with π and √."}
   - id: B3.3
     title: "Rekenen met wortels"
     verify_math: {status: supported, check_types: [arithmetic, answer_equivalence, expression_equivalence], tests: [VM113, VM114, VM117, VM118, VM124], note: "√ notation, simplified form and root conditions."}
@@ -74,7 +74,7 @@ paragraphs:
     verify_math: {status: partial, check_types: [equation_solution], note: "The equation is checkable once written; setting it up from a figure is out of scope."}
   - id: B3.5
     title: "De sinusregel en de cosinusregel"
-    verify_math: {status: planned, note: "Formula substitution with sin/cos in degrees; ambiguous case of the sinusregel needs care."}
+    verify_math: {status: supported, check_types: [sine_rule, cosine_rule], tests: [VM292, GEO058, GEO060, GEO061, GEO065], note: "Sinusregel and cosinusregel in degrees; the ambiguous case returns ambiguous_triangle, impossible triangles impossible_triangle."}
 
   # --- H4 Vergelijkingen en herleidingen ---
   - id: B4.0
