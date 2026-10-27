@@ -415,13 +415,15 @@ so a teacher sees the AI answer and the verification result separately.
 | `step_validation` | `3x - 5 = 7 → 3x = 12 → x = 3` | first invalid step + steps consistent after the error |
 | `formula_substitution` | `v = s / t`, `s=120`, `t=2` → `v = 60`; or `v=60`, `s=120` → `t = 2` | checks a student's result, also when the unknown is in a denominator; a zero denominator is rejected |
 | `formula_rewrite` | `v = s / t` → `s = v · t` | checks the rewrite and returns conditions such as `t ≠ 0` |
+| `percentage_change` | `80 → 100` = `25%`; `100 → 80` = `-20%` or `20% afname` | percentage increase/decrease; flags dividing by the new value |
 | `unit_conversion` | `72 km/u` → `20 m/s`, `1 dm³` → `1 L` | exact conversions for metric length, mass, area, volume (litres included, `ml` or `mL`), time (`u` or `h`) and speed (`km/u`); rounding only when the task asks for it |
 
 Every result has one of three statuses: `verified`, `wrong` or `unverifiable`.
 When the tool cannot check something reliably, it says so instead of guessing.
 
 **Dutch school notation:** decimal comma (`1,5`), mixed numbers (`1 3/4`), `:` for division,
-`×` / `·`, Unicode minus, `²`. `1.000` is rejected as ambiguous (thousands separator or decimal).
+`×` / `·`, Unicode minus, `²`, percentages (`25%`, `25% van 80`). `1.000` is rejected as ambiguous
+(thousands separator or decimal), and so is `80 + 15%` (92 on a calculator, 80,15 in algebra).
 Formula rewrites retain nonzero conditions from variable denominators; equation-solving and
 step-validation still return unverifiable for such denominators when they cannot safely report a
 complete restricted solution set. Unit conversions use explicit quantities and a fixed unit table;
@@ -437,7 +439,7 @@ verify_math("step_validation", steps=["-2(x - 3) = 4", "-2x - 6 = 4", "-2x = 10"
 # {'status': 'wrong', 'failed_step': 2, 'steps_consistent_after_error': [3, 4], ...}
 ```
 
-**Tests:** 93 acceptance cases in `tests/verify_math_cases.yaml` (correct and deliberately wrong
+**Tests:** 111 acceptance cases in `tests/verify_math_cases.yaml` (correct and deliberately wrong
 solutions, unsafe input, ambiguous notation, denominator conditions and unit conversions) plus unit tests:
 `python -m pytest -q`.
 

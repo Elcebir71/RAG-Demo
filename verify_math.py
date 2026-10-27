@@ -11,7 +11,8 @@ Scope:
 - real solution-set checks and step-by-step checks for equations;
 - letter formulas: substituting values and rewriting for another letter,
   with nonzero conditions from letters in a denominator;
-- metric unit conversions from a fixed unit table (including Dutch km/u).
+- metric unit conversions from a fixed unit table (including Dutch km/u);
+- percentages: 25%, '25% van 80', and percentage change (80 -> 100 = 25%).
 
 This is a verification aid, not a proof of pedagogical correctness or of the
 semantic modelling of a word problem. See README.md for the limitations.
@@ -61,8 +62,20 @@ _LETTER_RUN_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]{3,}")
 # Dutch prose is classified separately as a semantic formalisation task.
 # Quotes, underscores and other executable-looking syntax are rejected before
 # the parser is invoked.
-_ALLOWED_CHARS = re.compile(r"^[0-9A-Za-zπ+\-−–—*/:×·()^²³=,\.\s]*$")
-_SUSPICIOUS_CHARS = set("_'\"[]{}!@#$%&`\\;")
+_ALLOWED_CHARS = re.compile(r"^[0-9A-Za-zπ%+\-−–—*/:×·()^²³=,\.\s]*$")
+_SUSPICIOUS_CHARS = set("_'\"[]{}!@#$&`\\;")
+# 'p% van q' is the only place where the word 'van' is allowed: it means p% · q.
+_PERCENT_OF_RE = re.compile(r"%\s*van\b", re.IGNORECASE)
+# 80 + 15% means 92 on a calculator but 80,15 in algebra: never guess.
+_AMBIGUOUS_PERCENT_RE = re.compile(
+    r"(?<=[0-9A-Za-z)%π²³])\s*[+\-−–]\s*\d+(?:,\d+)?\s*%"
+    r"|\d\s*%\s*[+\-−–]\s*[0-9A-Za-z(π]"
+)
+
+
+def _normalize_percent_phrases(text: str) -> str:
+    """Turn '25% van 80' into '25% · 80' before any other check."""
+    return _PERCENT_OF_RE.sub("% ·", text)
 _WORD_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]+")
 _MIXED_RE = re.compile(r"\d+\s+\d+\s*/\s*\d+")
 _NUMBER_RE = re.compile(r"(?:\d+[,.]\d+|\d+)")
@@ -99,6 +112,8 @@ _REASON_NL = {
     "invalid_equation": "Voer precies één vergelijking met een gelijkteken in.",
     "invalid_answer": "Het antwoord kon niet als een ondersteunde wiskundige waarde worden gelezen.",
     "rounding_instruction_not_supported": "De afrondingsinstructie wordt niet ondersteund.",
+    "ambiguous_percentage": "Een getal plus of min een percentage (zoals 80 + 15%) is dubbelzinnig: 92 op een rekenmachine, 80,15 in de algebra. Schrijf 80 · 1,15 of 80 + 15% van 80.",
+    "invalid_percentage_change": "Geef de oude en de nieuwe waarde als 'oud -> nieuw', bijvoorbeeld 80 -> 100, en het antwoord als percentage.",
 }
 
 _PREFLIGHT_REASONS = {
@@ -110,6 +125,7 @@ _PREFLIGHT_REASONS = {
     "unsupported_variable",
     "reserved_symbol",
     "word_variables_not_supported",
+    "ambiguous_percentage",
 }
 
 
@@ -127,6 +143,7 @@ def _preflight(text: Any) -> tuple[bool, str | None]:
         return False, "disallowed_characters_or_syntax"
     if len(text) > MAX_INPUT_LENGTH:
         return False, "input_too_long"
+    text = _normalize_percent_phrases(text)
     if any(char in _SUSPICIOUS_CHARS for char in text):
         return False, "disallowed_characters_or_syntax"
 
@@ -141,6 +158,9 @@ def _preflight(text: Any) -> tuple[bool, str | None]:
     # supported because the entire input is not just a coordinate-like pair.
     if re.fullmatch(r"\(\s*\d+\s*,\s*\d+\s*\)", text.strip()):
         return False, "ambiguous_comma_notation"
+
+    if _AMBIGUOUS_PERCENT_RE.search(text):
+        return False, "ambiguous_percentage"
 
     words = _LETTER_RUN_RE.findall(text)
     if words:
@@ -163,6 +183,7 @@ def _preflight(text: Any) -> tuple[bool, str | None]:
 def _tokenize(text: str) -> list[_Token]:
     """Tokenise a restricted expression without eval/parse_expr."""
     # Unicode operator normalisation is explicit and local.
+    text = _normalize_percent_phrases(text)
     text = text.translate(str.maketrans({"−": "-", "–": "-", "—": "-", "×": "*", "·": "*", "²": "^2", "³": "^3"}))
     tokens: list[_Token] = []
     pos = 0
@@ -197,6 +218,9 @@ def _tokenize(text: str) -> list[_Token]:
             if char in _RESERVED_LETTERS:
                 raise _MathInputError("reserved_symbol")
             tokens.append(_Token("VAR", char, pos, pos + 1))
+            pos += 1
+        elif char == "%":
+            tokens.append(_Token("PCT", char, pos, pos + 1))
             pos += 1
         elif char == "(":
             tokens.append(_Token("LPAREN", char, pos, pos + 1))
@@ -293,6 +317,14 @@ class _Parser:
         return self._parse_power()
 
     def _parse_power(self) -> sp.Expr:
+        result = self._parse_power_core()
+        # Postfix percent binds like a power: 25% = 25/100, and 100 : 25% = 400.
+        while (tok := self._peek()) is not None and tok.kind == "PCT":
+            self._take()
+            result = sp.Mul(result, sp.Rational(1, 100), evaluate=True)
+        return result
+
+    def _parse_power_core(self) -> sp.Expr:
         base = self._parse_atom()
         tok = self._peek()
         if tok is not None and tok.kind == "OP" and tok.value == "^":
@@ -525,7 +557,7 @@ def _parse_assignment(text: Any, allow_variable_denominators: bool = False) -> t
 def _parse_rounding_places(instruction: str | None) -> int | None:
     if not instruction:
         return None
-    match = re.search(r"\brond\s+af\s+op\s+(\d+)\s+decimalen\b", instruction, re.IGNORECASE)
+    match = re.search(r"\brond\s+af\s+op\s+(\d+)\s+decima(?:al|len)\b", instruction, re.IGNORECASE)
     if not match:
         # Do not silently ignore a rounding request whose precision cannot be
         # interpreted. Ordinary non-rounding task instructions remain neutral.
@@ -585,6 +617,25 @@ def _unverifiable(check_type: str, input_value: Any, error: _MathInputError, *, 
     )
 
 
+def _rounded_compare(exact: sp.Expr, answer: sp.Expr, places: int | None,
+                     answer_text: str) -> tuple[bool, dict[str, Any]]:
+    """Compare an answer with an exact value, allowing rounding only when asked.
+
+    When the answer is written as a percentage (33,33%), rounding is applied to
+    the percentage number, not to the fraction 0,3333.
+    """
+    if sp.simplify(exact - answer) == 0:
+        return True, {}
+    if places is None:
+        return False, {}
+    percent = answer_text.strip().endswith("%")
+    scale = 100 if percent else 1
+    rounded = _rounded_rational(exact * scale, places)
+    display = _rounded_display(exact * scale, places) + ("%" if percent else "")
+    matched = sp.simplify(answer * scale - rounded) == 0
+    return matched, {"decimal_places": places, "rounded_answer": display}
+
+
 _UNDEFINED_PHRASES = {"kan niet", "bestaat niet", "niet mogelijk", "ongedefinieerd", "niet gedefinieerd"}
 
 
@@ -594,7 +645,8 @@ def _is_undefined_phrase(answer: str | None) -> bool:
     return normalised in _UNDEFINED_PHRASES
 
 
-def _verify_arithmetic(check_type: str, input_value: str, submitted_answer: str | None) -> dict[str, Any]:
+def _verify_arithmetic(check_type: str, input_value: str, submitted_answer: str | None,
+                       task_instruction: str | None = None) -> dict[str, Any]:
     ok, reason = _preflight(input_value)
     if not ok:
         return _unverifiable(check_type, input_value, _MathInputError(reason or "disallowed_characters_or_syntax"))
@@ -631,9 +683,11 @@ def _verify_arithmetic(check_type: str, input_value: str, submitted_answer: str 
         )
     try:
         answer = _answer_value(submitted_answer)
+        places = _parse_rounding_places(task_instruction)
     except _MathInputError as exc:
         return _unverifiable(check_type, input_value, exc, parser_invoked=True)
-    correct = sp.simplify(value - answer) == 0
+    correct, rounding_fields = _rounded_compare(value, answer, places, submitted_answer)
+    fields.update(rounding_fields)
     return _result(
         "verified" if correct else "wrong", check_type, input_value, **fields,
         submitted_answer=submitted_answer,
@@ -642,7 +696,8 @@ def _verify_arithmetic(check_type: str, input_value: str, submitted_answer: str 
     )
 
 
-def _verify_answer_equivalence(input_value: str, submitted_answer: str | None) -> dict[str, Any]:
+def _verify_answer_equivalence(input_value: str, submitted_answer: str | None,
+                               task_instruction: str | None = None) -> dict[str, Any]:
     if submitted_answer is None:
         return _unverifiable("answer_equivalence", input_value, _MathInputError("invalid_answer"))
     ok, reason = _preflight(input_value)
@@ -651,13 +706,14 @@ def _verify_answer_equivalence(input_value: str, submitted_answer: str | None) -
     try:
         input_value_exact = _numeric_value(input_value)
         answer = _answer_value(submitted_answer)
+        places = _parse_rounding_places(task_instruction)
     except _MathInputError as exc:
         return _unverifiable("answer_equivalence", input_value, exc, parser_invoked=True)
-    correct = sp.simplify(input_value_exact - answer) == 0
+    correct, rounding_fields = _rounded_compare(input_value_exact, answer, places, submitted_answer)
     return _result(
         "verified" if correct else "wrong", "answer_equivalence", input_value,
         exact_value=_serialize_exact(input_value_exact), submitted_answer=submitted_answer,
-        parser_invoked=True,
+        parser_invoked=True, **rounding_fields,
         explanation_nl=("Beide notaties hebben dezelfde exacte waarde." if correct
                         else f"De exacte waarde is {_serialize_exact(input_value_exact)}."),
     )
@@ -1096,6 +1152,82 @@ def _verify_unit_conversion(input_value: str, submitted_answer: str | None,
     )
 
 
+def _verify_percentage_change(input_value: str, submitted_answer: str | None,
+                              task_instruction: str | None = None) -> dict[str, Any]:
+    """Percentage increase or decrease from an old to a new value, e.g. 80 -> 100 = 25%."""
+    check_type = "percentage_change"
+    parts = re.split(r"\s*(?:->|→)\s*", input_value.strip())
+    if len(parts) != 2 or not all(parts):
+        return _unverifiable(check_type, input_value, _MathInputError("invalid_percentage_change"))
+    try:
+        old = _numeric_value(parts[0])
+        new = _numeric_value(parts[1])
+        if old == 0:
+            raise _MathInputError("division_by_zero")
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc,
+                             parser_invoked=exc.reason not in _PREFLIGHT_REASONS)
+    exact = sp.simplify((new - old) / old * 100)
+    fields: dict[str, Any] = {"exact_value": _serialize_exact(exact), "parser_invoked": True}
+    if submitted_answer is None:
+        return _result("unverifiable", check_type, input_value, **fields, reason="no_claim_to_check",
+                       explanation_nl=_REASON_NL["no_claim_to_check"])
+    try:
+        if not isinstance(submitted_answer, str):
+            raise _MathInputError("invalid_answer")
+        text = submitted_answer.strip()
+        lowered = text.casefold()
+        direction_word = "afname" if "afname" in lowered else "toename" if "toename" in lowered else None
+        text = re.sub(r"\b(toename|afname|van)\b", " ", text, flags=re.IGNORECASE).strip()
+        if not text.endswith("%"):
+            raise _MathInputError("invalid_percentage_change")
+        number_text = text[:-1].strip()
+        has_sign = number_text.startswith(("+", "-", "−", "–"))
+        value = _numeric_value(number_text)
+        places = _parse_rounding_places(task_instruction)
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc, parser_invoked=True)
+    if direction_word == "afname":
+        value = -abs(value)
+    elif direction_word == "toename":
+        value = abs(value)
+    direction_given = has_sign or direction_word is not None
+
+    def matches(candidate: sp.Expr) -> tuple[bool, dict[str, Any]]:
+        # Answer and exact value are both in percent already: no extra scaling.
+        return _rounded_compare(exact, candidate, places, "")
+
+    correct, rounding_fields = matches(value)
+    fields.update(rounding_fields)
+    fields["submitted_answer"] = submitted_answer
+    if correct:
+        explanation = "De procentuele verandering klopt."
+    elif not direction_given and exact < 0 and matches(-value)[0]:
+        # 100 -> 80 answered as '20%': the size is right, the direction is missing.
+        fields["value_correct"] = True
+        fields["direction_missing"] = True
+        size = _serialize_exact(abs(exact))
+        explanation = f"De grootte klopt, maar het is een afname: schrijf -{size}% of {size}% afname."
+    else:
+        explanation = f"De procentuele verandering is {_serialize_exact(exact)}%."
+        if new != 0:
+            wrong_base = sp.simplify((new - old) / new * 100)
+            if _matches_value(wrong_base, value, places, direction_given):
+                fields["misconception"] = "divided_by_new_value"
+                explanation += " Deel het verschil door de oude waarde, niet door de nieuwe."
+    fields["explanation_nl"] = explanation
+    return _result("verified" if correct else "wrong", check_type, input_value, **fields)
+
+
+def _matches_value(target: sp.Expr, value: sp.Expr, places: int | None, direction_given: bool) -> bool:
+    """True when value equals target (or, without a direction, its size)."""
+    candidates = [value] if direction_given else [value, -value]
+    for candidate in candidates:
+        if _rounded_compare(target, candidate, places, "")[0]:
+            return True
+    return False
+
+
 def verify_math(
     check_type: str,
     input: str = "",
@@ -1110,13 +1242,13 @@ def verify_math(
     Args:
         check_type: one of arithmetic, answer_equivalence, expression_equivalence,
             equation_solution, step_validation, formula_substitution, formula_rewrite,
-            unit_conversion.
+            unit_conversion, percentage_change.
         input: expression, equation or quantity; not used to infer a word problem's meaning.
         submitted_answer: the student's answer to compare, exactly as written.
         steps: explicit equation steps for step_validation. When omitted, an
             arrow-delimited input string is accepted for compatibility.
         task_instruction: optional Dutch rounding instruction, e.g.
-            ``Rond af op 2 decimalen.`` (equation_solution, unit_conversion).
+            ``Rond af op 2 decimalen.`` or ``Rond af op 1 decimaal.``
         variable: the letter to solve for when an equation contains more than
             one letter (equation_solution, step_validation).
         substitutions: values to fill in for formula_substitution, e.g.
@@ -1125,16 +1257,19 @@ def verify_math(
     Returns a dictionary with status in {verified, wrong, unverifiable}.
     """
     allowed_types = {"arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
-                     "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion"}
+                     "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
+                     "percentage_change"}
     if check_type not in allowed_types:
         return _unverifiable(str(check_type), input, _MathInputError("unsupported_math_form"))
     if not isinstance(input, str):
         return _unverifiable(check_type, input, _MathInputError("disallowed_characters_or_syntax"))
 
     if check_type == "arithmetic":
-        return _verify_arithmetic(check_type, input, submitted_answer)
+        return _verify_arithmetic(check_type, input, submitted_answer, task_instruction)
     if check_type == "answer_equivalence":
-        return _verify_answer_equivalence(input, submitted_answer)
+        return _verify_answer_equivalence(input, submitted_answer, task_instruction)
+    if check_type == "percentage_change":
+        return _verify_percentage_change(input, submitted_answer, task_instruction)
     if check_type == "expression_equivalence":
         return _verify_expression_equivalence(input)
     if check_type == "equation_solution":
@@ -1155,7 +1290,8 @@ if __name__ == "__main__":
 
     cli = argparse.ArgumentParser(description="Conservative Dutch maths verifier")
     cli.add_argument("check_type", choices=["arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
-                                            "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion"])
+                                            "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
+                                            "percentage_change"])
     cli.add_argument("input", help="Expression, equation, quantity, or arrow-delimited steps")
     cli.add_argument("--answer")
     cli.add_argument("--instruction")

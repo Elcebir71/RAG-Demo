@@ -17,6 +17,11 @@ conventions:
     - formula_substitution    # put given values into a formula, compare with submitted_answer
     - formula_rewrite         # rewrite a formula for another letter (taken from the answer's left side)
     - unit_conversion         # convert a quantity between metric units (fixed unit table, incl. km/u, ml/mL)
+    - percentage_change       # percentage increase/decrease, input "old -> new", answer like "25%", "-20%" or "20% afname"
+  percentages: >-
+    25% means 25/100 and binds like a power (100 : 25% = 400). 'p% van q' means p% · q.
+    A number plus or minus a percentage (80 + 15%) is ambiguous and returns ambiguous_percentage.
+    A decrease written without sign or 'afname' is wrong, with value_correct and direction_missing.
   conditions: >-
     Nonzero conditions from letters in a denominator are reported in their simplest readable form:
     constant factors are dropped (2x ≠ 0 becomes x ≠ 0) and duplicates removed.
@@ -818,4 +823,139 @@ cases:
     input: "2 m2"
     submitted_answer: "20000 cm2"
     expected: {status: verified, exact_value: "20000", source_unit: "m²", target_unit: "cm²"}
+
+  # --- Percentages (27 Oct 2026) ---
+  - id: VM097
+    title: Percentage of a number with 'van'
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "25% van 80"
+    submitted_answer: "20"
+    expected: {status: verified, exact_value: "20"}
+
+  - id: VM098
+    title: Dividing instead of taking a percentage
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "15% van 60"
+    submitted_answer: "4"
+    expected: {status: wrong, exact_value: "9"}
+    misconception: "Computed 60 : 15 instead of 15/100 × 60."
+
+  - id: VM099
+    title: Fraction and percentage are the same value
+    check_type: answer_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "1/4"
+    submitted_answer: "25%"
+    expected: {status: verified, exact_value: "1/4"}
+
+  - id: VM100
+    title: Rounded percentage when rounding is asked for
+    check_type: answer_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "1/3"
+    submitted_answer: "33,33%"
+    task_instruction: "Rond af op 2 decimalen."
+    expected: {status: verified, rounded_answer: "33,33%", decimal_places: 2}
+    notes: "Rounding applies to the percentage number (33,33), not to the fraction (0,33)."
+
+  - id: VM101
+    title: Rounded percentage without a rounding instruction
+    check_type: answer_equivalence
+    curriculum_scope: vwo1_candidate
+    input: "1/3"
+    submitted_answer: "33,33%"
+    expected: {status: wrong, exact_value: "1/3"}
+
+  - id: VM102
+    title: Percent binds tightly
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "100 : 25%"
+    submitted_answer: "400"
+    expected: {status: verified, exact_value: "400"}
+    notes: "100 : 25% means 100 : 0,25, not (100 : 25) : 100."
+
+  - id: VM103
+    title: Number plus a percentage is ambiguous
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "80 + 15%"
+    submitted_answer: "92"
+    expected: {status: unverifiable, reason: ambiguous_percentage, parser_invoked: false}
+    notes: "92 on a calculator, 80,15 in algebra: the tool must not choose."
+
+  - id: VM104
+    title: Percentage increase
+    check_type: percentage_change
+    curriculum_scope: vwo1_candidate
+    input: "80 -> 100"
+    submitted_answer: "25%"
+    expected: {status: verified, exact_value: "25"}
+
+  - id: VM105
+    title: Increase divided by the new value
+    check_type: percentage_change
+    curriculum_scope: vwo1_candidate
+    input: "80 -> 100"
+    submitted_answer: "20%"
+    expected: {status: wrong, exact_value: "25", misconception: divided_by_new_value}
+
+  - id: VM106
+    title: Percentage decrease with a minus sign
+    check_type: percentage_change
+    curriculum_scope: vwo1_candidate
+    input: "100 -> 80"
+    submitted_answer: "-20%"
+    expected: {status: verified, exact_value: "-20"}
+
+  - id: VM107
+    title: Percentage decrease written with 'afname'
+    check_type: percentage_change
+    curriculum_scope: vwo1_candidate
+    input: "100 -> 80"
+    submitted_answer: "20% afname"
+    expected: {status: verified}
+
+  - id: VM108
+    title: Decrease without a direction
+    check_type: percentage_change
+    curriculum_scope: vwo1_candidate
+    input: "100 -> 80"
+    submitted_answer: "20%"
+    expected: {status: wrong, value_correct: true, direction_missing: true}
+    notes: "Decision 27 Oct 2026 (open for review): a decrease needs a minus sign or 'afname'."
+
+  - id: VM109
+    title: Rounded percentage change with singular 'decimaal'
+    check_type: percentage_change
+    curriculum_scope: vwo1_candidate
+    input: "30 -> 40"
+    submitted_answer: "33,3%"
+    task_instruction: "Rond af op 1 decimaal."
+    expected: {status: verified, exact_value: "100/3", rounded_answer: "33,3", decimal_places: 1}
+
+  - id: VM110
+    title: Percentage change from zero is undefined
+    check_type: percentage_change
+    curriculum_scope: tool_boundary_test
+    input: "0 -> 50"
+    submitted_answer: "100%"
+    expected: {status: unverifiable, reason: division_by_zero}
+
+  - id: VM111
+    title: The word 'van' is only allowed after a percent sign
+    check_type: arithmetic
+    curriculum_scope: tool_boundary_test
+    input: "80 van 100"
+    submitted_answer: "80"
+    expected: {status: unverifiable, reason: requires_semantic_formalisation}
+
+  - id: VM112
+    title: Percentage without an answer is not verified
+    check_type: percentage_change
+    curriculum_scope: vwo1_candidate
+    input: "80 -> 100"
+    expected: {status: unverifiable, reason: no_claim_to_check, exact_value: "25"}
 

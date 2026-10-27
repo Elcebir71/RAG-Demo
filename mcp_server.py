@@ -26,6 +26,7 @@ CheckType = Literal[
     "formula_substitution",
     "formula_rewrite",
     "unit_conversion",
+    "percentage_change",
 ]
 
 
@@ -46,8 +47,8 @@ def verify_math_tool(
 
     When checking a student's work, always pass the student's answer in
     submitted_answer exactly as the student wrote it; never correct it first.
-    Without an answer, arithmetic, formula_substitution and unit_conversion
-    only calculate and return 'unverifiable' with reason 'no_claim_to_check'.
+    Without an answer, arithmetic, formula_substitution, unit_conversion and
+    percentage_change only calculate and return 'unverifiable' with reason 'no_claim_to_check'.
 
     check_type:
       - arithmetic: input is a numeric expression, e.g. "-3/4 + 2/3 × (-1,5)";
@@ -73,6 +74,17 @@ def verify_math_tool(
         length, mass, area, volume (litres included, ml or mL), time (s, min,
         u or h, d) and speed (m/s, km/u, km/h, m/min). Pass a rounding
         instruction in task_instruction when the task asks for rounding.
+      - percentage_change: input is "old -> new", submitted_answer the
+        student's percentage, e.g. "80 -> 100" and "25%"; a decrease as "-20%"
+        or "20% afname". A decrease written as plain "20%" returns 'wrong'
+        with direction_missing; misconception 'divided_by_new_value' means the
+        student divided by the new instead of the old value.
+
+    Percentages elsewhere: 25% = 25/100, "25% van 80" = 20. "80 + 15%" is
+    ambiguous (calculator 92, algebra 80,15) and returns ambiguous_percentage:
+    ask which one is meant. Rounding instructions ("Rond af op 2 decimalen",
+    "Rond af op 1 decimaal") work for arithmetic, answer_equivalence,
+    equation_solution, unit_conversion and percentage_change.
 
     Letters: any single letter can be a variable (case-sensitive); 'ab' means
     a times b. e and i are variables too, but any power of e (e², e^x) and
@@ -88,7 +100,8 @@ def verify_math_tool(
     '×' or '·' for multiplication. A period inside a number (1.000) is
     rejected as ambiguous.
 
-    task_instruction: optional, e.g. "Rond af op 2 decimalen."
+    task_instruction: optional, e.g. "Rond af op 2 decimalen." Pass it only
+    when the task itself asks for rounding.
 
     For step_validation, tell the teacher every invalid step: failed_step is
     the first one, additional_invalid_steps lists later independent errors,
