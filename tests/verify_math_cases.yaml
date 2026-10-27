@@ -802,3 +802,20 @@ cases:
     submitted_answer: "1000 cm³"
     expected: {status: verified, exact_value: "1000", target_unit: "cm³"}
 
+  - id: VM095
+    title: Cubic unit typed without superscript
+    check_type: unit_conversion
+    curriculum_scope: vwo1_candidate
+    input: "1 dm3"
+    submitted_answer: "1 L"
+    expected: {status: verified, exact_value: "1", source_unit: "dm³"}
+    notes: "Found in a Claude Desktop test on 27 Oct 2026: the model sent dm3, which was rejected before parsing."
+
+  - id: VM096
+    title: Square unit typed without superscript
+    check_type: unit_conversion
+    curriculum_scope: vwo1_candidate
+    input: "2 m2"
+    submitted_answer: "20000 cm2"
+    expected: {status: verified, exact_value: "20000", source_unit: "m²", target_unit: "cm²"}
+

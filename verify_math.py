@@ -1031,7 +1031,7 @@ def _unit_entries() -> dict[str, tuple[str, sp.Rational]]:
 _UNIT_TABLE = _unit_entries()
 _QUANTITY_RE = re.compile(
     r"^\s*([+-]?(?:\d+(?:,\d+)?|\d+\s*/\s*\d+))\s*"
-    r"([A-Za-z]+(?:²|³|\^2|\^3)?(?:/[A-Za-z]+)?)\s*$"
+    r"([A-Za-z]+(?:²|³|\^2|\^3|2|3)?(?:/[A-Za-z]+)?)\s*$"
 )
 
 
@@ -1042,7 +1042,10 @@ def _parse_quantity(value: Any) -> tuple[sp.Expr, str, str]:
     if not match:
         raise _MathInputError("unit_mismatch")
     number, unit = match.groups()
+    # Students and models often type m2 or dm3 instead of m² or dm³.
     unit = unit.replace("^2", "²").replace("^3", "³")
+    unit = re.sub(r"2(?=/|$)", "²", unit)
+    unit = re.sub(r"3(?=/|$)", "³", unit)
     if unit not in _UNIT_TABLE:
         raise _MathInputError("unit_mismatch")
     dimension, _ = _UNIT_TABLE[unit]
