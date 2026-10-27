@@ -413,12 +413,19 @@ so a teacher sees the AI answer and the verification result separately.
 | `expression_equivalence` | `-2(x - 3) = -2x + 6` | identity in x |
 | `equation_solution` | `3x - 5 = 7`, answer `x = 4` | full real solution set, incl. `geen oplossing` / `alle getallen` |
 | `step_validation` | `3x - 5 = 7 → 3x = 12 → x = 3` | first invalid step + steps consistent after the error |
+| `formula_substitution` | `v = s / t`, `s=120`, `t=2` → `v = 60`; or `v=60`, `s=120` → `t = 2` | checks a student's result, also when the unknown is in a denominator; a zero denominator is rejected |
+| `formula_rewrite` | `v = s / t` → `s = v · t` | checks the rewrite and returns conditions such as `t ≠ 0` |
+| `unit_conversion` | `72 km/u` → `20 m/s`, `1 dm³` → `1 L` | exact conversions for metric length, mass, area, volume (litres included, `ml` or `mL`), time (`u` or `h`) and speed (`km/u`); rounding only when the task asks for it |
 
 Every result has one of three statuses: `verified`, `wrong` or `unverifiable`.
 When the tool cannot check something reliably, it says so instead of guessing.
 
 **Dutch school notation:** decimal comma (`1,5`), mixed numbers (`1 3/4`), `:` for division,
 `×` / `·`, Unicode minus, `²`. `1.000` is rejected as ambiguous (thousands separator or decimal).
+Formula rewrites retain nonzero conditions from variable denominators; equation-solving and
+step-validation still return unverifiable for such denominators when they cannot safely report a
+complete restricted solution set. Unit conversions use explicit quantities and a fixed unit table;
+the tool does not infer equations from word problems.
 
 **Safety:** no `eval` and no `sympy.parse_expr`. A small recursive-descent parser builds SymPy
 objects directly; an allowlist and a length limit reject input before parsing.
@@ -430,8 +437,9 @@ verify_math("step_validation", steps=["-2(x - 3) = 4", "-2x - 6 = 4", "-2x = 10"
 # {'status': 'wrong', 'failed_step': 2, 'steps_consistent_after_error': [3, 4], ...}
 ```
 
-**Tests:** 44 acceptance cases in `tests/verify_math_cases.yaml` (correct and deliberately wrong
-solutions, unsafe input, ambiguous notation) plus unit tests: `python -m pytest -q`.
+**Tests:** 93 acceptance cases in `tests/verify_math_cases.yaml` (correct and deliberately wrong
+solutions, unsafe input, ambiguous notation, denominator conditions and unit conversions) plus unit tests:
+`python -m pytest -q`.
 
 ### Use it from Claude Desktop (local MCP server)
 
@@ -458,9 +466,9 @@ Ask Claude for example: *"Gebruik de tool verify_math: klopt deze uitwerking?
 −2(x − 3) = 4 → −2x − 6 = 4 → −2x = 10 → x = −5"*. Claude calls the tool and reports that
 step 2 contains a sign error and that the correct solution is x = 1.
 
-**Limits:** only the variable `x`; no geometry figures; `verified` covers the mathematical
-property that was checked, not whether a word problem was modelled correctly. A teacher still
-reviews generated material.
+**Limits:** one-letter variables are supported; multi-letter word formula names, geometry figures,
+and automatic word-problem modelling are out of scope. `verified` covers only the mathematical
+property that was checked. A teacher still reviews generated material.
 
 ## Author
 

@@ -25,6 +25,7 @@ CheckType = Literal[
     "step_validation",
     "formula_substitution",
     "formula_rewrite",
+    "unit_conversion",
 ]
 
 
@@ -45,38 +46,47 @@ def verify_math_tool(
 
     When checking a student's work, always pass the student's answer in
     submitted_answer exactly as the student wrote it; never correct it first.
-    Without an answer, arithmetic and formula_substitution only calculate and
-    return 'unverifiable' with reason 'no_claim_to_check'.
+    Without an answer, arithmetic, formula_substitution and unit_conversion
+    only calculate and return 'unverifiable' with reason 'no_claim_to_check'.
 
     check_type:
       - arithmetic: input is a numeric expression, e.g. "-3/4 + 2/3 × (-1,5)";
         submitted_answer is the claimed value, e.g. "-7/4".
       - answer_equivalence: input and submitted_answer are two notations of one
         value, e.g. "-7/4" and "-1,75".
-      - expression_equivalence: input is an identity in x to check,
-        e.g. "-2(x - 3) = -2x + 6".
-      - equation_solution: input is an equation in x, submitted_answer is the
+      - expression_equivalence: input is an identity to check,
+        e.g. "-2(x - 3) = -2x + 6" or "2(a + b) = 2a + 2b".
+      - equation_solution: input is an equation, submitted_answer is the
         claimed solution, e.g. "x = 4", "geen oplossing" or "alle getallen".
       - step_validation: steps is the list of equation lines, the original
         equation first, e.g. ["3x - 5 = 7", "3x = 12", "x = 4"].
       - formula_substitution: input is a letter formula, substitutions the
         values to fill in, submitted_answer the claimed result,
-        e.g. "w = 4p + 10", {"p": "3"}, "w = 22".
+        e.g. "w = 4p + 10", {"p": "3"}, "w = 22". The unknown may also be in
+        a denominator: "v = s / t", {"v": "60", "s": "120"}, "t = 2".
       - formula_rewrite: input is a formula, submitted_answer the formula
         rewritten for another letter, e.g. "w = 4p + 10" and "p = (w - 10) / 4".
+        With letters in a denominator the result lists conditions such as
+        "t ≠ 0"; tell the teacher these conditions.
+      - unit_conversion: input and submitted_answer are quantities with units,
+        e.g. "72 km/u" and "20 m/s", or "1 dm³" and "1 L". Supported: metric
+        length, mass, area, volume (litres included, ml or mL), time (s, min,
+        u or h, d) and speed (m/s, km/u, km/h, m/min). Pass a rounding
+        instruction in task_instruction when the task asks for rounding.
 
     Letters: any single letter can be a variable (case-sensitive); 'ab' means
     a times b. e and i are variables too, but any power of e (e², e^x) and
-    i² return ambiguous_constant: ask the teacher whether e is Euler's number or i the
-    imaginary unit. π is always the constant pi. Word formulas ('aantal') are
-    not supported. If an equation has more than one letter, pass the letter to
-    solve for in 'variable'. If the result has variable_mismatch with
-    value_correct true, tell the teacher the value is right but the answer is
-    written under the wrong letter (status is still 'wrong').
+    i² return ambiguous_constant: ask the teacher whether e is Euler's number
+    or i the imaginary unit. π is always the constant pi. Word formulas
+    ('aantal') are not supported. If an equation has more than one letter,
+    pass the letter to solve for in 'variable'. If the result has
+    variable_mismatch with value_correct true, tell the teacher the value is
+    right but the answer is written under the wrong letter (status is still
+    'wrong').
 
     Notation: decimal comma (1,5), mixed numbers (1 3/4), ':' for division,
-    '×' or '·' for multiplication. A period inside a
-    number (1.000) is rejected as ambiguous.
+    '×' or '·' for multiplication. A period inside a number (1.000) is
+    rejected as ambiguous.
 
     task_instruction: optional, e.g. "Rond af op 2 decimalen."
 

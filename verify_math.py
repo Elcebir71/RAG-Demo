@@ -5,11 +5,13 @@ recursive-descent parser accepts a restricted mathematical grammar and builds
 SymPy objects directly. Unsupported or ambiguous input fails closed as
 'unverifiable'.
 
-Scope in this first version:
+Scope:
 - exact numeric arithmetic and answer-equivalence checks;
-- symbolic identity checks in one variable x;
-- real solution-set checks for equations in x;
-- step-by-step equation equivalence checks.
+- symbolic identity checks with single-letter variables;
+- real solution-set checks and step-by-step checks for equations;
+- letter formulas: substituting values and rewriting for another letter,
+  with nonzero conditions from letters in a denominator;
+- metric unit conversions from a fixed unit table (including Dutch km/u).
 
 This is a verification aid, not a proof of pedagogical correctness or of the
 semantic modelling of a word problem. See README.md for the limitations.
@@ -19,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP, localcontext
 import re
-from typing import Any, Iterable, Sequence
+from typing import Any, Sequence
 
 import sympy as sp
 from sympy.core.sorting import default_sort_key
@@ -83,12 +85,13 @@ _REASON_NL = {
     "variable_denominator_unsupported": "Een noemer met een letter kan domeinbeperkingen geven; deze invoer wordt niet automatisch vereenvoudigd.",
     "reserved_symbol": "Dit symbool is gereserveerd en kan niet als variabele worden gebruikt.",
     "no_claim_to_check": "Er is geen antwoord van de leerling meegegeven; de waarde is berekend, maar er is niets gecontroleerd.",
+    "unit_mismatch": "De eenheden horen niet bij dezelfde grootheid of worden niet ondersteund.",
     "ambiguous_constant": "Hier kan e het getal van Euler of i de imaginaire eenheid zijn. Geef aan of het een variabele of een constante is; de tool kiest niet zelf.",
     "word_variables_not_supported": "Woordformules met namen van meerdere letters worden nog niet ondersteund; gebruik één letter per variabele.",
     "ambiguous_unknown": "De vergelijking bevat meerdere letters; geef aan voor welke letter moet worden opgelost.",
     "invalid_variable": "De opgegeven onbekende is geen geldige letter uit de vergelijking.",
     "invalid_substitution": "De in te vullen waarden moeten bij letters uit de formule horen en getallen zijn.",
-    "unsupported_variable": "Deze verifier ondersteunt alleen de variabele x; andere variabelen worden niet gecontroleerd.",
+    "unsupported_variable": "Deze variabele wordt niet ondersteund.",
     "division_by_zero": "De uitdrukking bevat een deling door nul en heeft daarom geen geldige waarde.",
     "unsupported_math_form": "Deze wiskundige notatie valt buiten de ondersteunde grammatica.",
     "not_numeric_expression": "De uitdrukking bevat een variabele en is geen zuiver numerieke berekening.",
@@ -217,10 +220,11 @@ def _tokenize(text: str) -> list[_Token]:
 
 
 class _Parser:
-    """Recursive-descent parser for arithmetic and expressions in x."""
+    """Recursive-descent parser for arithmetic and expressions with letters."""
     def __init__(self, text: str):
         self.tokens = _tokenize(text)
         self.index = 0
+        self.denominators: list[sp.Expr] = []
 
     def _peek(self) -> _Token | None:
         return self.tokens[self.index] if self.index < len(self.tokens) else None
@@ -266,11 +270,10 @@ class _Parser:
                 if op == "/":
                     if rhs == 0:
                         raise _MathInputError("division_by_zero")
-                    # SymPy may simplify x/x to 1 and erase x != 0. To avoid
-                    # accidentally asserting an identity over an invalid domain,
-                    # fail closed whenever a denominator still depends on x.
+                    # SymPy cancels x/x to 1 while building the expression, so
+                    # every denominator with a letter is remembered separately.
                     if rhs.free_symbols:
-                        raise _MathInputError("variable_denominator_unsupported")
+                        self.denominators.append(rhs)
                     result = sp.Mul(result, sp.Pow(rhs, -1, evaluate=True), evaluate=True)
                 else:
                     result = sp.Mul(result, rhs, evaluate=True)
@@ -310,7 +313,7 @@ class _Parser:
             if base == 0 and exp_value < 0:
                 raise _MathInputError("division_by_zero")
             if exp_value < 0 and base.free_symbols:
-                raise _MathInputError("variable_denominator_unsupported")
+                self.denominators.append(base)
             return sp.Pow(base, exponent, evaluate=True)
         return base
 
@@ -344,19 +347,27 @@ class _Parser:
         raise _MathInputError("unsupported_math_form")
 
 
-def _parse_expr(text: str) -> sp.Expr:
-    """Parse a preflight-approved expression and build SymPy objects directly."""
-    return _Parser(text).parse()
+def _parse_expr(text: str, denominators: list[sp.Expr] | None = None) -> sp.Expr:
+    """Parse an approved expression and optionally retain its domain restrictions."""
+    parser = _Parser(text)
+    result = parser.parse()
+    if denominators is not None:
+        denominators.extend(parser.denominators)
+    return result
 
 
-def _safe_parse_expr(text: Any) -> sp.Expr:
+def _safe_parse_expr(text: Any, allow_variable_denominators: bool = False) -> sp.Expr:
     ok, reason = _preflight(text)
     if not ok:
         raise _MathInputError(reason or "disallowed_characters_or_syntax")
-    return _parse_expr(text)
+    denominators: list[sp.Expr] = []
+    value = _parse_expr(text, denominators)
+    if denominators and not allow_variable_denominators:
+        raise _MathInputError("variable_denominator_unsupported")
+    return value
 
 
-def _parse_equation(text: Any) -> tuple[sp.Expr, sp.Expr]:
+def _parse_equation(text: Any, denominators: list[sp.Expr] | None = None) -> tuple[sp.Expr, sp.Expr]:
     ok, reason = _preflight(text)
     if not ok:
         raise _MathInputError(reason or "disallowed_characters_or_syntax")
@@ -365,9 +376,30 @@ def _parse_equation(text: Any) -> tuple[sp.Expr, sp.Expr]:
     lhs_text, rhs_text = text.split("=", 1)
     if not lhs_text.strip() or not rhs_text.strip():
         raise _MathInputError("invalid_equation")
-    lhs = _parse_expr(lhs_text)
-    rhs = _parse_expr(rhs_text)
+    lhs = _parse_expr(lhs_text, denominators)
+    rhs = _parse_expr(rhs_text, denominators)
     return lhs, rhs
+
+
+def _domain_restrictions(expressions: Sequence[sp.Expr]) -> list[str]:
+    """Readable nonzero conditions, without duplicates or redundant factors.
+
+    For a quotient only the numerator matters (the denominator is listed as
+    its own condition), and a constant factor never changes 'is it zero', so
+    s/v ≠ 0 becomes s ≠ 0 and 2x ≠ 0 becomes x ≠ 0.
+    """
+    result: list[str] = []
+    seen: set[str] = set()
+    for expression in expressions:
+        numerator, _ = sp.together(expression).as_numer_denom()
+        _, core = sp.factor(numerator).as_coeff_Mul()
+        if not core.free_symbols:
+            continue  # a nonzero constant is always nonzero
+        condition = f"{sp.sstr(core)} ≠ 0"
+        if condition not in seen:
+            seen.add(condition)
+            result.append(condition)
+    return result
 
 
 def _serialize_exact(expr: sp.Expr) -> str:
@@ -464,7 +496,7 @@ def _answer_value(text: str) -> sp.Expr:
     return _numeric_value(candidate)
 
 
-def _parse_assignment(text: Any) -> tuple[str | None, sp.Expr]:
+def _parse_assignment(text: Any, allow_variable_denominators: bool = False) -> tuple[str | None, sp.Expr]:
     """Parse an answer such as 'p = 3', 'a = 10 - 2b' or just '3'.
 
     Returns the letter on the left (or None) and the expression on the right.
@@ -484,7 +516,7 @@ def _parse_assignment(text: Any) -> tuple[str | None, sp.Expr]:
         candidate = rhs_text.strip()
     elif "=" in candidate:
         raise _MathInputError("invalid_answer")
-    expr = _safe_parse_expr(candidate)
+    expr = _safe_parse_expr(candidate, allow_variable_denominators=allow_variable_denominators)
     if expr.has(sp.zoo, sp.nan, sp.oo, -sp.oo):
         raise _MathInputError("unsupported_math_form")
     return name, expr
@@ -632,25 +664,34 @@ def _verify_answer_equivalence(input_value: str, submitted_answer: str | None) -
 
 
 def _verify_expression_equivalence(input_value: str) -> dict[str, Any]:
+    denominators: list[sp.Expr] = []
     try:
-        lhs, rhs = _parse_equation(input_value)
+        lhs, rhs = _parse_equation(input_value, denominators)
         difference = sp.simplify(lhs - rhs)
         equivalent = difference == 0
     except _MathInputError as exc:
         return _unverifiable("expression_equivalence", input_value, exc,
                              parser_invoked=exc.reason not in _PREFLIGHT_REASONS)
+    fields: dict[str, Any] = {"equivalent": bool(equivalent), "parser_invoked": True}
+    if denominators:
+        fields["domain_restrictions"] = _domain_restrictions(denominators)
     return _result(
         "verified" if equivalent else "wrong", "expression_equivalence", input_value,
-        equivalent=bool(equivalent), parser_invoked=True,
-        explanation_nl=("De twee uitdrukkingen zijn equivalent." if equivalent
-                        else "De twee uitdrukkingen zijn niet voor alle toegestane x-waarden gelijk."),
+        **fields,
+        explanation_nl=("De twee uitdrukkingen zijn equivalent op het domein waar de noemers niet nul zijn."
+                        if equivalent and denominators else
+                        "De twee uitdrukkingen zijn equivalent." if equivalent else
+                        "De twee uitdrukkingen zijn niet equivalent."),
     )
 
 
 def _verify_equation_solution(input_value: str, submitted_answer: str | None, task_instruction: str | None,
                               variable: str | None = None) -> dict[str, Any]:
     try:
-        lhs, rhs = _parse_equation(input_value)
+        denominators: list[sp.Expr] = []
+        lhs, rhs = _parse_equation(input_value, denominators)
+        if denominators:
+            raise _MathInputError("variable_denominator_unsupported")
         unknown = _pick_unknown(lhs.free_symbols | rhs.free_symbols, variable)
         solutions = _solution_set(lhs, rhs, unknown)
         serialized_solutions = _serialize_solution_set(solutions)
@@ -725,10 +766,17 @@ def _verify_equation_solution(input_value: str, submitted_answer: str | None, ta
 
 
 def _verify_formula_substitution(input_value: str, substitutions: Any, submitted_answer: str | None) -> dict[str, Any]:
-    """Fill in given values (e.g. p = 3 in w = 4p + 10) and check the result."""
+    """Fill in given values (e.g. p = 3 in w = 4p + 10) and check the result.
+
+    The letter that is left over may also sit in a denominator, e.g. t in
+    v = s / t with v and s given: the formula is then brought to one fraction
+    and its numerator is solved, and the result is checked against every
+    denominator.
+    """
     check_type = "formula_substitution"
+    denominators: list[sp.Expr] = []
     try:
-        lhs, rhs = _parse_equation(input_value)
+        lhs, rhs = _parse_equation(input_value, denominators)
     except _MathInputError as exc:
         return _unverifiable(check_type, input_value, exc,
                              parser_invoked=exc.reason not in _PREFLIGHT_REASONS)
@@ -742,14 +790,22 @@ def _verify_formula_substitution(input_value: str, substitutions: Any, submitted
                     or name in _RESERVED_LETTERS or _symbol(name) not in formula_symbols):
                 raise _MathInputError("invalid_substitution")
             mapping[_symbol(name)] = _numeric_value(str(raw_value))
-        difference = sp.simplify((lhs - rhs).subs(mapping))
-        remaining = difference.free_symbols
+        for denominator in denominators:
+            if sp.simplify(denominator.subs(mapping)) == 0:
+                raise _MathInputError("division_by_zero")
+        filled_in = sp.together((lhs - rhs).subs(mapping))
+        remaining = filled_in.free_symbols
         if len(remaining) != 1:
             raise _MathInputError("ambiguous_unknown")
         target = next(iter(remaining))
-        value = _solve_linear(difference, target)
+        numerator, fraction_denominator = filled_in.as_numer_denom()
+        value = _solve_linear(numerator, target)
         if not value.is_number:
             raise _MathInputError("unsupported_solution_set")
+        for denominator in [*denominators, fraction_denominator]:
+            evaluated_denominator = sp.simplify(denominator.subs(mapping).subs({target: value}))
+            if evaluated_denominator == 0:
+                raise _MathInputError("division_by_zero")
     except _MathInputError as exc:
         return _unverifiable(check_type, input_value, exc, parser_invoked=True)
 
@@ -758,6 +814,8 @@ def _verify_formula_substitution(input_value: str, substitutions: Any, submitted
         "target_variable": target.name,
         "parser_invoked": True,
     }
+    if denominators:
+        fields["domain_restrictions"] = _domain_restrictions(denominators)
     if submitted_answer is None:
         # Same rule as arithmetic: a value without a claim is not 'verified'.
         return _result("unverifiable", check_type, input_value, **fields, reason="no_claim_to_check",
@@ -785,33 +843,66 @@ def _verify_formula_substitution(input_value: str, substitutions: Any, submitted
 
 
 def _verify_formula_rewrite(input_value: str, submitted_answer: str | None) -> dict[str, Any]:
-    """Check a formula rewritten for another letter, e.g. w = 4p + 10 -> p = (w - 10) / 4."""
+    """Check a formula rewrite and retain any conditions introduced by denominators."""
     check_type = "formula_rewrite"
+    denominators: list[sp.Expr] = []
     try:
-        lhs, rhs = _parse_equation(input_value)
+        lhs, rhs = _parse_equation(input_value, denominators)
     except _MathInputError as exc:
         return _unverifiable(check_type, input_value, exc,
                              parser_invoked=exc.reason not in _PREFLIGHT_REASONS)
     try:
         if submitted_answer is None:
             raise _MathInputError("invalid_answer")
-        answer_name, candidate = _parse_assignment(submitted_answer)
+        answer_name, candidate = _parse_assignment(submitted_answer, allow_variable_denominators=True)
         if answer_name is None:
             raise _MathInputError("invalid_answer")
         target = _symbol(answer_name)
         if target not in (lhs.free_symbols | rhs.free_symbols) or candidate.has(target):
             raise _MathInputError("invalid_answer")
-        solution = _solve_linear(sp.simplify(lhs - rhs), target)
+        difference = sp.together(lhs - rhs)
+        numerator, _ = difference.as_numer_denom()
+        poly = sp.Poly(sp.expand(numerator), target)
+        if poly.degree() != 1:
+            raise _MathInputError("unsupported_solution_set")
+        coefficient, constant = poly.all_coeffs()
+        if coefficient == 0:
+            raise _MathInputError("unsupported_solution_set")
+        solution = sp.simplify(-constant / coefficient)
+        correct = sp.simplify(candidate - solution) == 0
     except _MathInputError as exc:
         return _unverifiable(check_type, input_value, exc, parser_invoked=True)
-    correct = sp.simplify(candidate - solution) == 0
+    except sp.PolynomialError:
+        return _unverifiable(check_type, input_value, _MathInputError("unsupported_solution_set"),
+                             parser_invoked=True)
+    conditions: list[sp.Expr] = []
+    for denominator in denominators:
+        condition = sp.simplify(denominator.subs({target: solution}))
+        if condition == 0:
+            return _unverifiable(check_type, input_value, _MathInputError("unsupported_solution_set"),
+                                 parser_invoked=True)
+        conditions.append(condition)
+    coefficient_condition = sp.simplify(coefficient)
+    if coefficient_condition.free_symbols:
+        conditions.append(coefficient_condition)
+    if solution.is_rational_function(*solution.free_symbols):
+        _, solution_denominator = sp.together(solution).as_numer_denom()
+        if solution_denominator != 1:
+            conditions.append(solution_denominator)
     expected = f"{target.name} = {sp.sstr(solution)}"
+    fields: dict[str, Any] = {
+        "target_variable": target.name, "expected_formula": expected,
+        "submitted_answer": submitted_answer, "parser_invoked": True,
+    }
+    if conditions:
+        fields["conditions"] = _domain_restrictions(conditions)
     return _result(
         "verified" if correct else "wrong", check_type, input_value,
-        target_variable=target.name, expected_formula=expected,
-        submitted_answer=submitted_answer, parser_invoked=True,
-        explanation_nl=("De herschreven formule is equivalent met de oorspronkelijke." if correct
-                        else f"Herschreven naar {target.name} hoort de formule {expected} te zijn."),
+        **fields,
+        explanation_nl=("De herschreven formule klopt onder de genoemde voorwaarden."
+                        if correct and conditions else
+                        "De herschreven formule is equivalent met de oorspronkelijke." if correct else
+                        f"Herschreven naar {target.name} hoort de formule {expected} te zijn."),
     )
 
 
@@ -843,8 +934,11 @@ def _verify_steps(input_value: str, steps: Sequence[str] | None, variable: str |
     try:
         equations = []
         for step in given_steps:
-            equations.append(_parse_equation(step))
+            denominators: list[sp.Expr] = []
+            equations.append(_parse_equation(step, denominators))
             parser_invoked = True
+            if denominators:
+                raise _MathInputError("variable_denominator_unsupported")
         all_symbols: set = set()
         for lhs, rhs in equations:
             all_symbols |= lhs.free_symbols | rhs.free_symbols
@@ -902,6 +996,103 @@ def _verify_steps(input_value: str, steps: Sequence[str] | None, variable: str |
     return _result(status, "step_validation", input_value, **fields)
 
 
+def _unit_entries() -> dict[str, tuple[str, sp.Rational]]:
+    """Fixed metric unit table: unit -> (dimension, factor to the base unit)."""
+    r = sp.Rational
+    table: dict[str, tuple[str, sp.Rational]] = {
+        # Length (base: metre)
+        "mm": ("length", r(1, 1000)), "cm": ("length", r(1, 100)), "dm": ("length", r(1, 10)),
+        "m": ("length", r(1)), "dam": ("length", r(10)), "hm": ("length", r(100)), "km": ("length", r(1000)),
+        # Mass (base: gram)
+        "mg": ("mass", r(1, 1000)), "cg": ("mass", r(1, 100)), "dg": ("mass", r(1, 10)), "g": ("mass", r(1)),
+        "dag": ("mass", r(10)), "hg": ("mass", r(100)), "kg": ("mass", r(1000)), "t": ("mass", r(1000000)),
+        # Time (base: second). Dutch schools write 'u' for uur; 'h' is accepted too.
+        "s": ("time", r(1)), "min": ("time", r(60)), "u": ("time", r(3600)), "h": ("time", r(3600)),
+        "d": ("time", r(86400)),
+        # Area (base: square metre)
+        "mm²": ("area", r(1, 1000000)), "cm²": ("area", r(1, 10000)), "dm²": ("area", r(1, 100)),
+        "m²": ("area", r(1)), "km²": ("area", r(1000000)), "ha": ("area", r(10000)),
+        # Volume (base: cubic metre). Litres are volume too, so 1 dm³ = 1 L can be checked.
+        "mm³": ("volume", r(1, 10**9)), "cm³": ("volume", r(1, 10**6)), "dm³": ("volume", r(1, 1000)),
+        "m³": ("volume", r(1)),
+        # Speed (base: metres per second). Dutch: km/u.
+        "m/s": ("speed", r(1)), "km/u": ("speed", r(5, 18)), "km/h": ("speed", r(5, 18)),
+        "m/min": ("speed", r(1, 60)),
+    }
+    # Capacity units, in both spellings used in Dutch schools (ml and mL).
+    litre_factors = {"m": r(1, 10**6), "c": r(1, 10**5), "d": r(1, 10**4), "": r(1, 1000),
+                     "da": r(1, 100), "h": r(1, 10), "k": r(1)}
+    for prefix, factor in litre_factors.items():
+        table[f"{prefix}L"] = ("volume", factor)
+        table[f"{prefix}l"] = ("volume", factor)
+    return table
+
+
+_UNIT_TABLE = _unit_entries()
+_QUANTITY_RE = re.compile(
+    r"^\s*([+-]?(?:\d+(?:,\d+)?|\d+\s*/\s*\d+))\s*"
+    r"([A-Za-z]+(?:²|³|\^2|\^3)?(?:/[A-Za-z]+)?)\s*$"
+)
+
+
+def _parse_quantity(value: Any) -> tuple[sp.Expr, str, str]:
+    if not isinstance(value, str):
+        raise _MathInputError("unit_mismatch")
+    match = _QUANTITY_RE.fullmatch(value)
+    if not match:
+        raise _MathInputError("unit_mismatch")
+    number, unit = match.groups()
+    unit = unit.replace("^2", "²").replace("^3", "³")
+    if unit not in _UNIT_TABLE:
+        raise _MathInputError("unit_mismatch")
+    dimension, _ = _UNIT_TABLE[unit]
+    return _numeric_value(number), unit, dimension
+
+
+def _verify_unit_conversion(input_value: str, submitted_answer: str | None,
+                            task_instruction: str | None = None) -> dict[str, Any]:
+    check_type = "unit_conversion"
+    try:
+        input_value_number, input_unit, input_dimension = _parse_quantity(input_value)
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc, parser_invoked=False)
+    _, input_factor = _UNIT_TABLE[input_unit]
+    if submitted_answer is None:
+        return _result(
+            "unverifiable", check_type, input_value, reason="no_claim_to_check",
+            exact_value=_serialize_exact(input_value_number),
+            source_unit=input_unit, explanation_nl="De hoeveelheid is gelezen, maar er is geen omrekening van de leerling om te controleren.",
+        )
+    try:
+        answer_number, answer_unit, answer_dimension = _parse_quantity(submitted_answer)
+        places = _parse_rounding_places(task_instruction)
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc, parser_invoked=True)
+    if input_dimension != answer_dimension:
+        return _unverifiable(check_type, input_value, _MathInputError("unit_mismatch"), parser_invoked=True)
+    _, answer_factor = _UNIT_TABLE[answer_unit]
+    exact_value = sp.simplify(input_value_number * input_factor / answer_factor)
+    exact_match = sp.simplify(exact_value - answer_number) == 0
+    fields: dict[str, Any] = {
+        "exact_value": _serialize_exact(exact_value), "target_unit": answer_unit,
+        "source_unit": input_unit, "submitted_answer": submitted_answer, "parser_invoked": True,
+    }
+    # Same rounding policy as equations: an approximation only counts when the
+    # task asks for it, e.g. 50 km/u = 13,89 m/s with "Rond af op 2 decimalen."
+    rounded_match = False
+    if places is not None:
+        rounded_match = sp.simplify(answer_number - _rounded_rational(exact_value, places)) == 0
+        fields["decimal_places"] = places
+        fields["rounded_answer"] = _rounded_display(exact_value, places)
+    correct = bool(exact_match or rounded_match)
+    return _result(
+        "verified" if correct else "wrong", check_type, input_value, **fields,
+        explanation_nl=("De omrekening klopt exact." if exact_match else
+                        "De omrekening klopt na afronden." if correct else
+                        f"De hoeveelheid is {_serialize_exact(exact_value)} {answer_unit}."),
+    )
+
+
 def verify_math(
     check_type: str,
     input: str = "",
@@ -915,13 +1106,14 @@ def verify_math(
 
     Args:
         check_type: one of arithmetic, answer_equivalence, expression_equivalence,
-            equation_solution, step_validation, formula_substitution, formula_rewrite.
-        input: expression or equation; not used to infer a word problem's meaning.
-        submitted_answer: answer to compare for arithmetic/equation checks.
+            equation_solution, step_validation, formula_substitution, formula_rewrite,
+            unit_conversion.
+        input: expression, equation or quantity; not used to infer a word problem's meaning.
+        submitted_answer: the student's answer to compare, exactly as written.
         steps: explicit equation steps for step_validation. When omitted, an
             arrow-delimited input string is accepted for compatibility.
         task_instruction: optional Dutch rounding instruction, e.g.
-            ``Rond af op 2 decimalen.``
+            ``Rond af op 2 decimalen.`` (equation_solution, unit_conversion).
         variable: the letter to solve for when an equation contains more than
             one letter (equation_solution, step_validation).
         substitutions: values to fill in for formula_substitution, e.g.
@@ -930,7 +1122,7 @@ def verify_math(
     Returns a dictionary with status in {verified, wrong, unverifiable}.
     """
     allowed_types = {"arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
-                     "step_validation", "formula_substitution", "formula_rewrite"}
+                     "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion"}
     if check_type not in allowed_types:
         return _unverifiable(str(check_type), input, _MathInputError("unsupported_math_form"))
     if not isinstance(input, str):
@@ -948,6 +1140,8 @@ def verify_math(
         return _verify_formula_substitution(input, substitutions, submitted_answer)
     if check_type == "formula_rewrite":
         return _verify_formula_rewrite(input, submitted_answer)
+    if check_type == "unit_conversion":
+        return _verify_unit_conversion(input, submitted_answer, task_instruction)
     return _verify_steps(input, steps, variable)
 
 
@@ -958,8 +1152,8 @@ if __name__ == "__main__":
 
     cli = argparse.ArgumentParser(description="Conservative Dutch maths verifier")
     cli.add_argument("check_type", choices=["arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
-                                            "step_validation", "formula_substitution", "formula_rewrite"])
-    cli.add_argument("input", help="Expression, equation, or arrow-delimited steps")
+                                            "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion"])
+    cli.add_argument("input", help="Expression, equation, quantity, or arrow-delimited steps")
     cli.add_argument("--answer")
     cli.add_argument("--instruction")
     cli.add_argument("--variable")
