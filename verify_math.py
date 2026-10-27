@@ -17,7 +17,8 @@ Scope:
 - systems of two linear equations in two letters (2x + y = 7; x - y = 2);
 - function notation: f(x) = ... with a value f(-2) or an equation f(x) = g(x);
 - statistics of a list: gemiddelde, mediaan, modus, spreidingsbreedte;
-- scientific notation (a · 10^n with 1 ≤ |a| < 10) and superscript exponents.
+- scientific notation (a · 10^n with 1 ≤ |a| < 10) and superscript exponents;
+- divisors, multiples and primes: ggd, kgv, priemfactoren, delers, priemgetal.
 
 This is a verification aid, not a proof of pedagogical correctness or of the
 semantic modelling of a word problem. See README.md for the limitations.
@@ -131,6 +132,8 @@ _REASON_NL = {
     "invalid_inequality": "Voer één ongelijkheid in met <, >, ≤ of ≥, of een dubbele ongelijkheid zoals -4 < 2x + 2 ≤ 8.",
     "invalid_system": "Voer een stelsel in als twee vergelijkingen, gescheiden door ';' of een nieuwe regel, bijvoorbeeld 2x + y = 7; x - y = 2.",
     "invalid_function": "Geef eerst de functie(s), bijvoorbeeld f(x) = 2x + 1, en daarna de opdracht, gescheiden door ';': f(3) of f(x) = 7. Gebruik alleen functies die gedefinieerd zijn.",
+    "unsupported_number_task": "Deze opdracht wordt niet ondersteund; kies ggd, kgv, priemfactoren, delers of priemgetal.",
+    "invalid_number_input": "Geef de opdracht en hele positieve getallen, bijvoorbeeld 'ggd: 12, 18' of 'priemfactoren: 360'.",
     "unsupported_statistic": "Deze statistische maat wordt (nog) niet ondersteund; kies gemiddelde, mediaan, modus of spreidingsbreedte.",
     "invalid_statistics_input": "Geef de maat en de getallen, bijvoorbeeld 'gemiddelde: 4, 7, 7, 9, 3' of 'mediaan: 1,5; 2,5; 3,5'.",
     "interval_notation_not_supported": "Intervalnotatie (zoals ⟨←, 3⟩ of [2, 5]) wordt nog niet gelezen; schrijf het antwoord als x < 3 of 2 ≤ x ≤ 5.",
@@ -2437,6 +2440,188 @@ def _verify_scientific_notation(input_value: str, submitted_answer: str | None,
     return _result("wrong", check_type, input_value, **fields)
 
 
+# --- Divisors, multiples and primes ------------------------------------------
+_NUMBER_TASKS = {
+    "ggd": "gcd", "grootste gemene deler": "gcd",
+    "kgv": "lcm", "kleinste gemene veelvoud": "lcm", "kleinste gemeenschappelijke veelvoud": "lcm",
+    "priemfactoren": "factor", "ontbind in priemfactoren": "factor", "priemfactorontbinding": "factor",
+    "delers": "divisors", "alle delers": "divisors",
+    "priemgetal": "prime", "is priemgetal": "prime",
+}
+_NUMBER_INPUT_RE = re.compile(r"\s*([A-Za-z ]+?)\s*:\s*(.+?)\s*", re.DOTALL)
+_PRIME_FACTOR_RE = re.compile(r"(\d+)(?:\^\(?(\d+)\)?)?")
+MAX_NUMBER_THEORY = 10 ** 12
+
+
+def _whole_numbers(text: str) -> list[int]:
+    items = text.split(";") if ";" in text else re.split(r",\s+|\s+en\s+", text.strip())
+    numbers: list[int] = []
+    for item in items:
+        item = item.strip()
+        if "." in item:
+            raise _MathInputError("ambiguous_dot_notation")
+        if not re.fullmatch(r"\d+", item):
+            raise _MathInputError("invalid_number_input")
+        numbers.append(int(item))
+    return numbers
+
+
+def _factorization_text(n: int) -> str:
+    parts = []
+    for prime, power in sorted(sp.factorint(n).items()):
+        parts.append(str(prime) + (str(power).translate(_SUPERSCRIPT_OUT) if power > 1 else ""))
+    return " · ".join(parts)
+
+
+def _verify_number_theory(input_value: str, submitted_answer: str | None) -> dict[str, Any]:
+    check_type = "number_theory"
+    try:
+        if not isinstance(input_value, str) or len(input_value) > MAX_INPUT_LENGTH:
+            raise _MathInputError("invalid_number_input")
+        match = _NUMBER_INPUT_RE.fullmatch(input_value)
+        if not match:
+            raise _MathInputError("invalid_number_input")
+        task = _NUMBER_TASKS.get(" ".join(match.group(1).casefold().split()))
+        if task is None:
+            raise _MathInputError("unsupported_number_task")
+        numbers = _whole_numbers(match.group(2))
+        needed_many = task in ("gcd", "lcm")
+        if (needed_many and len(numbers) < 2) or (not needed_many and len(numbers) != 1):
+            raise _MathInputError("invalid_number_input")
+        if any(n < 1 or n > MAX_NUMBER_THEORY for n in numbers) or (task == "factor" and numbers[0] < 2):
+            raise _MathInputError("invalid_number_input")
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc)
+
+    fields: dict[str, Any] = {"task": task, "parser_invoked": True}
+    n = numbers[0]
+    if task == "gcd":
+        exact: Any = int(sp.gcd(numbers))
+        fields["exact_value"] = str(exact)
+    elif task == "lcm":
+        exact = int(sp.lcm(numbers))
+        fields["exact_value"] = str(exact)
+    elif task == "factor":
+        fields["exact_value"] = _factorization_text(n)
+    elif task == "divisors":
+        exact = [int(d) for d in sp.divisors(n)]
+        fields["exact_value"] = ", ".join(str(d) for d in exact)
+    else:
+        exact = bool(sp.isprime(n))
+        fields["exact_value"] = "ja" if exact else "nee"
+        if not exact and n > 1:
+            fields["factorization"] = _factorization_text(n)
+
+    if submitted_answer is None or not str(submitted_answer).strip():
+        return _result("unverifiable", check_type, input_value, **fields, reason="no_claim_to_check",
+                       explanation_nl=f"{_REASON_NL['no_claim_to_check']} Het antwoord is {fields['exact_value']}.")
+    fields["submitted_answer"] = submitted_answer
+    answer_text = submitted_answer.strip()
+
+    def invalid() -> dict[str, Any]:
+        return _unverifiable(check_type, input_value, _MathInputError("invalid_answer"), parser_invoked=True)
+
+    if task in ("gcd", "lcm"):
+        answer_text = re.sub(r"^(ggd|kgv)\s*=\s*", "", answer_text, flags=re.IGNORECASE)
+        if not re.fullmatch(r"\d+", answer_text):
+            return invalid()
+        given = int(answer_text)
+        if given == exact:
+            fields["explanation_nl"] = f"Het antwoord klopt: {fields['exact_value']}."
+            return _result("verified", check_type, input_value, **fields)
+        gcd_value, lcm_value = int(sp.gcd(numbers)), int(sp.lcm(numbers))
+        product = 1
+        for number in numbers:
+            product *= number
+        if task == "gcd" and given == lcm_value:
+            fields["misconception"] = "confused_ggd_kgv"
+            explanation = "Dit is het kgv (kleinste gemene veelvoud), gevraagd is de ggd (grootste gemene deler)."
+        elif task == "gcd" and given > 0 and all(number % given == 0 for number in numbers):
+            fields["misconception"] = "common_divisor_not_greatest"
+            explanation = f"{given} is wel een gemeenschappelijke deler, maar niet de grootste."
+        elif task == "lcm" and given == product:
+            fields["misconception"] = "product_instead_of_kgv"
+            explanation = "Het product is wel een gemeenschappelijk veelvoud, maar niet het kleinste."
+        elif task == "lcm" and given == gcd_value:
+            fields["misconception"] = "confused_ggd_kgv"
+            explanation = "Dit is de ggd (grootste gemene deler), gevraagd is het kgv (kleinste gemene veelvoud)."
+        elif task == "lcm" and given > 0 and given % lcm_value == 0:
+            fields["misconception"] = "common_multiple_not_least"
+            explanation = f"{given} is wel een gemeenschappelijk veelvoud, maar niet het kleinste."
+        else:
+            explanation = "Het antwoord klopt niet."
+        fields["explanation_nl"] = f"{explanation} Het juiste antwoord is {fields['exact_value']}."
+        return _result("wrong", check_type, input_value, **fields)
+
+    if task == "factor":
+        factors = re.split(r"\s*[·×*]\s*", _expand_superscripts(answer_text))
+        product, all_prime = 1, True
+        for factor in factors:
+            factor_match = _PRIME_FACTOR_RE.fullmatch(factor.strip())
+            if not factor_match:
+                return invalid()
+            base = int(factor_match.group(1))
+            power = int(factor_match.group(2) or 1)
+            if power > 64 or base > MAX_NUMBER_THEORY:
+                return invalid()
+            product *= base ** power
+            all_prime = all_prime and bool(sp.isprime(base))
+        fields["value_correct"] = product == n
+        if product == n and all_prime:
+            fields["explanation_nl"] = f"Het antwoord klopt: {n} = {fields['exact_value']}."
+            return _result("verified", check_type, input_value, **fields)
+        if product == n:
+            fields["misconception"] = "factor_not_prime"
+            fields["explanation_nl"] = ("Het product klopt, maar niet alle factoren zijn priemgetallen. "
+                                        f"Ontbind verder: {n} = {fields['exact_value']}.")
+        else:
+            fields["explanation_nl"] = f"Het product van de factoren is {product}, niet {n}. Juist is {fields['exact_value']}."
+        return _result("wrong", check_type, input_value, **fields)
+
+    if task == "divisors":
+        try:
+            given_list = _whole_numbers(answer_text)
+        except _MathInputError as exc:
+            if exc.reason == "invalid_number_input" and re.search(r"\d,\d", answer_text):
+                exc = _MathInputError("ambiguous_comma_notation")
+            elif exc.reason == "invalid_number_input":
+                exc = _MathInputError("invalid_answer")
+            return _unverifiable(check_type, input_value, exc, parser_invoked=True)
+        given_set = set(given_list)
+        missing = sorted(set(exact) - given_set)
+        extra = sorted(given_set - set(exact))
+        if not missing and not extra:
+            fields["explanation_nl"] = f"Het antwoord klopt: de delers van {n} zijn {fields['exact_value']}."
+            return _result("verified", check_type, input_value, **fields)
+        if missing:
+            fields["missing_divisors"] = missing
+        if extra:
+            fields["not_divisors"] = extra
+        hint = " Vergeet 1 en het getal zelf niet." if (1 in missing or n in missing) else ""
+        fields["explanation_nl"] = f"Het antwoord klopt niet.{hint} De delers van {n} zijn {fields['exact_value']}."
+        return _result("wrong", check_type, input_value, **fields)
+
+    lowered = " ".join(answer_text.casefold().split())
+    if re.search(r"\b(nee|geen|niet)\b", lowered):
+        claims_prime = False
+    elif re.search(r"\b(ja|wel)\b", lowered) or "is een priemgetal" in lowered:
+        claims_prime = True
+    else:
+        return invalid()
+    if claims_prime == exact:
+        fields["explanation_nl"] = (f"Het antwoord klopt: {n} is {'een' if exact else 'geen'} priemgetal"
+                                    + (f" ({n} = {fields['factorization']})." if "factorization" in fields else "."))
+        return _result("verified", check_type, input_value, **fields)
+    if n == 1:
+        explanation = "1 is geen priemgetal: een priemgetal heeft precies twee delers."
+    elif exact:
+        explanation = f"{n} is wel een priemgetal: het heeft alleen 1 en {n} als delers."
+    else:
+        explanation = f"{n} is geen priemgetal: {n} = {fields['factorization']}."
+    fields["explanation_nl"] = explanation
+    return _result("wrong", check_type, input_value, **fields)
+
+
 def verify_math(
     check_type: str,
     input: str = "",
@@ -2452,7 +2637,7 @@ def verify_math(
         check_type: one of arithmetic, answer_equivalence, expression_equivalence,
             equation_solution, step_validation, formula_substitution, formula_rewrite,
             unit_conversion, percentage_change, inequality_solution, system_solution,
-            function_notation, statistics, scientific_notation.
+            function_notation, statistics, scientific_notation, number_theory.
         input: expression, equation or quantity; not used to infer a word problem's meaning.
         submitted_answer: the student's answer to compare, exactly as written.
         steps: explicit equation steps for step_validation. When omitted, an
@@ -2470,7 +2655,7 @@ def verify_math(
     allowed_types = {"arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
                      "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
                      "percentage_change", "inequality_solution", "system_solution", "function_notation",
-                     "statistics", "scientific_notation"}
+                     "statistics", "scientific_notation", "number_theory"}
     if check_type not in allowed_types:
         return _unverifiable(str(check_type), input, _MathInputError("unsupported_math_form"))
     if not isinstance(input, str):
@@ -2502,6 +2687,8 @@ def verify_math(
         return _verify_statistics(input, submitted_answer, task_instruction)
     if check_type == "scientific_notation":
         return _verify_scientific_notation(input, submitted_answer, task_instruction)
+    if check_type == "number_theory":
+        return _verify_number_theory(input, submitted_answer)
     return _verify_steps(input, steps, variable)
 
 
@@ -2514,7 +2701,8 @@ if __name__ == "__main__":
     cli.add_argument("check_type", choices=["arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
                                             "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
                                             "percentage_change", "inequality_solution", "system_solution",
-                                            "function_notation", "statistics", "scientific_notation"])
+                                            "function_notation", "statistics", "scientific_notation",
+                                            "number_theory"])
     cli.add_argument("input", help="Expression, equation, quantity, or arrow-delimited steps")
     cli.add_argument("--answer")
     cli.add_argument("--instruction")

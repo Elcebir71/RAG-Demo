@@ -420,6 +420,7 @@ so a teacher sees the AI answer and the verification result separately.
 | `function_notation` | `f(x) = 2x² - 3x + 1; f(-2)`, answer `15`; `f(x) = 2x + 1; g(x) = -x + 7; f(x) = g(x)`, answer `x = 2` | function values and equations with f(x) notation; flags `-2²` instead of `(-2)²` |
 | `statistics` | `gemiddelde: 4, 7, 7, 9, 3` = `6`; `mediaan: 3, 8, 5, 10` = `6,5`; `modus: 2, 5, 5, 8, 8, 1` = `5 en 8` | mean, median, mode and range; flags an unsorted median and a single middle value |
 | `scientific_notation` | `45000` → `4,5 · 10⁴`; `(4 · 10³) × (5 · 10²)` → `2 · 10⁶` | value and form a · 10^n (1 ≤ \|a\| < 10); flags `45 · 10³`, `4,5E4` and a wrong exponent |
+| `number_theory` | `ggd: 12, 18` = `6`; `priemfactoren: 360` = `2³ · 3² · 5`; `priemgetal: 91` = `nee` | ggd, kgv, prime factors, divisors, primes; flags ggd/kgv mixed up and a product instead of the kgv |
 | `percentage_change` | `80 → 100` = `25%`; `100 → 80` = `-20%` or `20% afname` | percentage increase/decrease; flags dividing by the new value |
 | `unit_conversion` | `72 km/u` → `20 m/s`, `1 dm³` → `1 L` | exact conversions for metric length, mass, area, volume (litres included, `ml` or `mL`), time (`u` or `h`) and speed (`km/u`); rounding only when the task asks for it |
 
@@ -445,7 +446,7 @@ verify_math("step_validation", steps=["-2(x - 3) = 4", "-2x - 6 = 4", "-2x = 10"
 # {'status': 'wrong', 'failed_step': 2, 'steps_consistent_after_error': [3, 4], ...}
 ```
 
-**Tests:** 247 acceptance cases in `tests/verify_math_cases.yaml` (correct and deliberately wrong
+**Tests:** 265 acceptance cases in `tests/verify_math_cases.yaml` (correct and deliberately wrong
 solutions, unsafe input, ambiguous notation, denominator conditions and unit conversions) plus unit tests:
 `python -m pytest -q`.
 

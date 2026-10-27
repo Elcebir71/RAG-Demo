@@ -32,6 +32,7 @@ CheckType = Literal[
     "function_notation",
     "statistics",
     "scientific_notation",
+    "number_theory",
 ]
 
 
@@ -126,6 +127,13 @@ def verify_math_tool(
         calculator_notation (4,5E4), exponent_off_by_one, exponent_sign_wrong.
         value_correct says whether the number itself is right;
         scientific_form gives the expected answer.
+      - number_theory: input is the task, a colon and whole numbers:
+        "ggd: 12, 18", "kgv: 4, 6", "priemfactoren: 360", "delers: 12",
+        "priemgetal: 91". Answers: "6", "2³ · 3² · 5" (or 2 · 2 · 2 · ...),
+        "1, 2, 3, 4, 6, 12", "ja" / "nee". Misconceptions: confused_ggd_kgv,
+        common_divisor_not_greatest, product_instead_of_kgv,
+        common_multiple_not_least, factor_not_prime; missing_divisors lists
+        divisors that were left out.
 
     Percentages elsewhere: 25% = 25/100, "25% van 80" = 20. "80 + 15%" is
     ambiguous (calculator 92, algebra 80,15) and returns ambiguous_percentage:

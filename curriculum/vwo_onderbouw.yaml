@@ -463,7 +463,7 @@ topics:
     hv: false
     typical_years: [2]
     evidence: ["KERN 2A 1.1"]
-    verify_math: {status: planned, note: "Needs a check type for ggd, kgv and priemfactorontbinding."}
+    verify_math: {status: supported, check_types: [number_theory], tests: [VM249, VM250, VM251, VM253, VM255, VM257, VM260, VM261, VM263], note: "ggd, kgv, priemfactoren, delers and priemgetal (1 is not prime); flags ggd/kgv mixed up, a product instead of the kgv and non-prime factors."}
 
   - id: T39
     topic: "Assenstelsel en coördinaten"

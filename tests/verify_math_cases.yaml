@@ -22,6 +22,7 @@ conventions:
     - function_notation       # f(x) = ... definitions plus one task: a value f(-2), or an equation f(x) = 8 / f(x) = g(x)
     - statistics              # "gemiddelde: 4, 7, 7, 9, 3"; also mediaan, modus, spreidingsbreedte
     - scientific_notation     # value or calculation; the answer must be a · 10^n with 1 ≤ |a| < 10
+    - number_theory           # "ggd: 12, 18", "kgv: 4, 6", "priemfactoren: 360", "delers: 12", "priemgetal: 91"
     - percentage_change       # percentage increase/decrease, input "old -> new", answer like "25%", "-20%" or "20% afname"
   inequalities: >-
     Signs <, >, ≤, ≥ (also <= and >=). One letter, linear for now; a double inequality like
@@ -80,6 +81,13 @@ conventions:
     value right), calculator_notation (4,5E4), exponent_off_by_one (4,5 · 10³ for 45000) and
     exponent_sign_wrong (3,2 · 10⁴ for 0,00032). value_correct tells whether the number itself is right.
     scientific_form gives the expected answer.
+  number_theory: >-
+    Input is the task, a colon and whole positive numbers: ggd, kgv, priemfactoren, delers, priemgetal.
+    Numbers are separated by ';' or a comma plus a space. Answers: a whole number (ggd, kgv), a product
+    of primes written with powers or repeated factors ("2³ · 3² · 5" or "2 · 2 · 2 · 3 · 3 · 5"), a list
+    of divisors ("1, 2, 3, 4, 6, 12"), or ja / nee for priemgetal (1 is not a prime). Misconceptions:
+    confused_ggd_kgv, common_divisor_not_greatest, product_instead_of_kgv, factor_not_prime (the product
+    is right but a factor is not prime). missing_divisors lists divisors that were left out.
   roots: >-
     √ applies to the next number, letter or bracket: √12 + 1 is (√12) + 1, √(x + 1) needs brackets.
     A root form is simplified when no square factor is left under the root (2√3, not √12) and no
@@ -2156,3 +2164,147 @@ cases:
     input: "-0,05"
     submitted_answer: "-5 · 10⁻²"
     expected: {status: verified}
+
+  # --- Divisors, multiples and primes (tests written before the code, 27 Oct 2026) ---
+  - id: VM249
+    title: Greatest common divisor
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "ggd: 12, 18"
+    submitted_answer: "6"
+    expected: {status: verified, exact_value: "6"}
+
+  - id: VM250
+    title: ggd and kgv mixed up
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "ggd: 12, 18"
+    submitted_answer: "36"
+    expected: {status: wrong, misconception: confused_ggd_kgv}
+
+  - id: VM251
+    title: A common divisor that is not the greatest
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "ggd: 12, 18"
+    submitted_answer: "3"
+    expected: {status: wrong, misconception: common_divisor_not_greatest}
+
+  - id: VM252
+    title: Least common multiple
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "kgv: 4, 6"
+    submitted_answer: "12"
+    expected: {status: verified, exact_value: "12"}
+
+  - id: VM253
+    title: Product instead of the least common multiple
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "kgv: 4, 6"
+    submitted_answer: "24"
+    expected: {status: wrong, misconception: product_instead_of_kgv}
+
+  - id: VM254
+    title: ggd of three numbers
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "ggd: 24, 36, 60"
+    submitted_answer: "12"
+    expected: {status: verified}
+
+  - id: VM255
+    title: Prime factorization with powers
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "priemfactoren: 360"
+    submitted_answer: "2³ · 3² · 5"
+    expected: {status: verified, exact_value: "2³ · 3² · 5"}
+
+  - id: VM256
+    title: Prime factorization with repeated factors
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "priemfactoren: 360"
+    submitted_answer: "2 · 2 · 2 · 3 · 3 · 5"
+    expected: {status: verified}
+
+  - id: VM257
+    title: Product right but 9 is not prime
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "priemfactoren: 360"
+    submitted_answer: "2³ · 9 · 5"
+    expected: {status: wrong, misconception: factor_not_prime, value_correct: true}
+
+  - id: VM258
+    title: Prime factors with a power missing
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "priemfactoren: 360"
+    submitted_answer: "2³ · 3 · 5"
+    expected: {status: wrong, value_correct: false}
+
+  - id: VM259
+    title: All divisors
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "delers: 12"
+    submitted_answer: "1, 2, 3, 4, 6, 12"
+    expected: {status: verified}
+
+  - id: VM260
+    title: Divisors without 1 and the number itself
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "delers: 12"
+    submitted_answer: "2, 3, 4, 6"
+    expected: {status: wrong, missing_divisors: [1, 12]}
+
+  - id: VM261
+    title: 91 looks prime but is 7 · 13
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "priemgetal: 91"
+    submitted_answer: "ja"
+    expected: {status: wrong}
+
+  - id: VM262
+    title: 97 is prime
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "priemgetal: 97"
+    submitted_answer: "ja"
+    expected: {status: verified}
+
+  - id: VM263
+    title: 1 is not a prime
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "priemgetal: 1"
+    submitted_answer: "ja"
+    expected: {status: wrong}
+
+  - id: VM264
+    title: Decimal numbers are not allowed
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "ggd: 1,5, 3"
+    submitted_answer: "1,5"
+    expected: {status: unverifiable, reason: invalid_number_input}
+
+  - id: VM265
+    title: Unknown task
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "kgd: 4, 6"
+    submitted_answer: "12"
+    expected: {status: unverifiable, reason: unsupported_number_task}
+
+  - id: VM266
+    title: No answer means nothing was checked
+    check_type: number_theory
+    curriculum_scope: vwo1_candidate
+    input: "ggd: 12, 18"
+    expected: {status: unverifiable, reason: no_claim_to_check, exact_value: "6"}
