@@ -390,7 +390,7 @@ topics:
       status: supported
       check_types: [formula_substitution]
       tests: [VM132, VM133, VM134, VM135, VM136]
-      note: "With the formula given (a² + b² = c²); the positive length is taken (assumed_positive). Choosing the hypotenuse from a figure is out of scope."
+      note: "Two ways: the formula given (a² + b² = c², formula_substitution) or a named right angle (pythagoras: 'hoek B = 90°' makes AC the hypotenuse; flags wrong_side and adding instead of subtracting). Reading the right angle from a figure is done by the caller and echoed in the result."
   - id: T31
     topic: "Goniometrische verhoudingen in rechthoekige driehoeken (sin, cos, tan)"
     kerndoel: VO-13A

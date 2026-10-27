@@ -62,7 +62,7 @@ paragraphs:
     verify_math: {status: supported, check_types: [trig_ratio], note: "sin/cos/tan in degrees (onderbouw T31)."}
   - id: B3.1
     title: "Berekeningen in driehoeken"
-    verify_math: {status: partial, check_types: [formula_substitution, trig_ratio], note: "Pythagoras (formula given) and sin/cos/tan work; Pythagoras with a named right angle is planned (geometry G7); the figure itself is out of scope."}
+    verify_math: {status: supported, check_types: [pythagoras, formula_substitution, trig_ratio], note: "Pythagoras with a named right angle and sin/cos/tan; the figure itself is read by the caller."}
   - id: B3.2
     title: "Lengte, omtrek en oppervlakte"
     verify_math: {status: supported, check_types: [shape_formula, formula_substitution], note: "Named shape formulas and given formulas, exact answers with π and √."}

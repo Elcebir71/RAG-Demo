@@ -1918,6 +1918,310 @@ def _verify_midpoint(
         explanation_nl=f"Onjuist, het exacte midden is {exact_value_str}.",
     )
 
+# =========================================================================
+# G7 — Pythagoras in right-angled triangles (pythagoras)
+# =========================================================================
+
+def _verify_pythagoras(
+    input_str: str,
+    submitted_answer: str | None = None,
+    task_instruction: str | None = None,
+    values: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Verify side lengths in right-angled triangles using Pythagorean theorem."""
+    if values:
+        for v in values.values():
+            if _has_dot_notation(v):
+                return _result(
+                    "unverifiable", "pythagoras", input_str, submitted_answer,
+                    reason="ambiguous_dot_notation", parser_invoked=False,
+                    explanation_nl="Puntnotatie in getallen is niet toegestaan; gebruik een komma als decimaalteken.",
+                )
+
+    if _has_dot_notation(submitted_answer):
+        return _result(
+            "unverifiable", "pythagoras", input_str, submitted_answer,
+            reason="ambiguous_dot_notation", parser_invoked=False,
+            explanation_nl="Puntnotatie in getallen is niet toegestaan; gebruik een komma als decimaalteken.",
+        )
+
+    # Parse triangle format: "rechthoekige driehoek ABC: hoek B = 90°"
+    match = re.match(
+        r"^\s*rechthoekige\s+driehoek\s+([A-Za-z]{3})\s*:\s*hoek\s+([A-Za-z])\s*=\s*90\s*°?\s*$",
+        input_str.strip(),
+        re.IGNORECASE,
+    )
+    if not match:
+        return _result(
+            "unverifiable", "pythagoras", input_str, submitted_answer,
+            reason="invalid_format", parser_invoked=False,
+            explanation_nl="Invoer moet het formaat 'rechthoekige driehoek <naam>: hoek <hoekpunt> = 90°' hebben.",
+        )
+
+    tri_name = match.group(1).upper()
+    right_vertex = match.group(2).upper()
+
+    if right_vertex not in tri_name or len(set(tri_name)) != 3:
+        return _result(
+            "unverifiable", "pythagoras", input_str, submitted_answer,
+            reason="invalid_triangle", parser_invoked=False,
+            explanation_nl=f"Hoekpunt {right_vertex} maakt geen deel uit van driehoek {tri_name}.",
+        )
+
+    other_vertices = [v for v in tri_name if v != right_vertex]
+    v1, v2 = other_vertices[0], other_vertices[1]
+
+    # Valid sides of the triangle
+    hyp_set = frozenset([v1, v2])
+    leg1_set = frozenset([right_vertex, v1])
+    leg2_set = frozenset([right_vertex, v2])
+    valid_sides = {hyp_set, leg1_set, leg2_set}
+
+    hyp_name = "".join(sorted([v1, v2]))
+
+    if not values:
+        return _result(
+            "unverifiable", "pythagoras", input_str, submitted_answer,
+            reason="missing_variables", parser_invoked=False,
+            explanation_nl="Geen zijdelengten opgegeven.",
+        )
+
+    # Validate keys in values
+    normalized_values: dict[frozenset[str], str] = {}
+    for k, v in values.items():
+        clean_k = k.strip().upper()
+        if len(clean_k) != 2 or frozenset(clean_k) not in valid_sides:
+            return _result(
+                "unverifiable", "pythagoras", input_str, submitted_answer,
+                reason="invalid_side", parser_invoked=False,
+                explanation_nl=f"Zijde '{k}' is geen geldige zijde van driehoek {tri_name}.",
+            )
+        normalized_values[frozenset(clean_k)] = v
+
+    if len(normalized_values) > 2:
+        return _result(
+            "unverifiable", "pythagoras", input_str, submitted_answer,
+            reason="too_many_values", parser_invoked=False,
+            explanation_nl="Er zijn te veel zijden opgegeven; verwacht precies 2 bekende zijden.",
+        )
+
+    if len(normalized_values) < 2:
+        return _result(
+            "unverifiable", "pythagoras", input_str, submitted_answer,
+            reason="missing_variables", parser_invoked=False,
+            explanation_nl="Onvoldoende gegevens voor de stelling van Pythagoras.",
+        )
+
+    val_units: list[str] = []
+    parsed_sides: dict[frozenset[str], sp.Expr] = {}
+
+    for seg_set, raw_val in normalized_values.items():
+        num_str, u = _extract_unit_and_value(raw_val)
+        if u:
+            val_units.append(u)
+        try:
+            parsed_sides[seg_set] = _numeric_value(num_str)
+        except _MathInputError as e:
+            return _result(
+                "unverifiable", "pythagoras", input_str, submitted_answer,
+                reason=getattr(e, "reason", "invalid_syntax"), parser_invoked=True,
+                explanation_nl=getattr(e, "message_nl", "Kan de opgegeven zijdelengte niet verwerken."),
+            )
+
+    if len(set(val_units)) > 1:
+        return _result(
+            "unverifiable", "pythagoras", input_str, submitted_answer,
+            reason="unit_mismatch", parser_invoked=False,
+            explanation_nl="Verschillende eenheden opgegeven in de zijden.",
+        )
+
+    base_unit = val_units[0] if val_units else None
+
+    # Determine target side and calculate exact result
+    exact_res = None
+    added_instead_res = None
+    forgot_sqrt_res = None
+    target_seg_set: frozenset[str]
+
+    if leg1_set in parsed_sides and leg2_set in parsed_sides:
+        target_seg_set = hyp_set
+        a = parsed_sides[leg1_set]
+        b = parsed_sides[leg2_set]
+        if a <= 0 or b <= 0:
+            return _result(
+                "unverifiable", "pythagoras", input_str, submitted_answer,
+                reason="impossible_triangle", parser_invoked=True,
+                explanation_nl="Zijdelengten moeten strikt positief zijn.",
+            )
+        exact_res = sp.sqrt(a**2 + b**2)
+        forgot_sqrt_res = a**2 + b**2
+
+    elif hyp_set in parsed_sides:
+        c = parsed_sides[hyp_set]
+        if leg1_set in parsed_sides:
+            target_seg_set = leg2_set
+            a = parsed_sides[leg1_set]
+        else:
+            target_seg_set = leg1_set
+            a = parsed_sides[leg2_set]
+
+        if c <= 0 or a <= 0:
+            return _result(
+                "unverifiable", "pythagoras", input_str, submitted_answer,
+                reason="impossible_triangle", parser_invoked=True,
+                explanation_nl="Zijdelengten moeten strikt positief zijn.",
+            )
+
+        if a >= c:
+            return _result(
+                "unverifiable", "pythagoras", input_str, submitted_answer,
+                reason="impossible_triangle", parser_invoked=True,
+                explanation_nl="Een rechthoekszijde kan niet langer zijn dan of gelijk zijn aan de schuine zijde.",
+            )
+
+        exact_res = sp.sqrt(c**2 - a**2)
+        added_instead_res = sp.sqrt(c**2 + a**2)
+        forgot_sqrt_res = c**2 - a**2
+    else:
+        return _result(
+            "unverifiable", "pythagoras", input_str, submitted_answer,
+            reason="missing_variables", parser_invoked=False,
+            explanation_nl="Onvoldoende gegevens voor de stelling van Pythagoras.",
+        )
+
+    target_name = "".join(sorted(target_seg_set))
+    exact_res = sp.simplify(exact_res)
+    exact_value_str = _serialize_exact(exact_res)
+
+    if submitted_answer is None or submitted_answer.strip() == "":
+        out = _result(
+            "unverifiable", "pythagoras", input_str, submitted_answer,
+            reason="no_claim_to_check", exact_value=exact_value_str,
+            hypotenuse=hyp_name, target_side=target_name, parser_invoked=True,
+            explanation_nl=f"De exacte waarde is {exact_value_str}, maar er is geen antwoord ingeleverd.",
+        )
+        if base_unit:
+            out["unit"] = base_unit
+        return out
+
+    # Parse potential label in submitted answer (order-free e.g. "CA = 10")
+    clean_ans = submitted_answer.strip()
+    label_match = re.match(r"^\s*([A-Za-z]{2})\s*=\s*(.+)$", clean_ans)
+    given_label = None
+
+    if label_match:
+        given_label = "".join(sorted(label_match.group(1).upper()))
+        ans_payload = label_match.group(2).strip()
+    else:
+        ans_payload = clean_ans
+        if "=" in ans_payload:
+            ans_payload = ans_payload.split("=")[-1].strip()
+
+    ans_num_str, ans_unit = _extract_unit_and_value(ans_payload)
+
+    # Unit dimension and matching check
+    if ans_unit:
+        ans_dim = _get_dimension(ans_unit)
+        if ans_dim != "length":
+            return _result(
+                "wrong", "pythagoras", input_str, submitted_answer,
+                exact_value=exact_value_str, hypotenuse=hyp_name, target_side=target_name,
+                misconception="wrong_unit_dimension", parser_invoked=True,
+                explanation_nl="Verkeerde eenheidsdimensie: verwacht een lengte-eenheid.",
+            )
+        if base_unit and ans_unit != base_unit:
+            return _result(
+                "wrong", "pythagoras", input_str, submitted_answer,
+                exact_value=exact_value_str, hypotenuse=hyp_name, target_side=target_name,
+                misconception="wrong_unit", parser_invoked=True,
+                explanation_nl=f"Verkeerde eenheid: verwacht {base_unit}.",
+            )
+
+    effective_unit = ans_unit or base_unit
+
+    try:
+        submitted_expr = _safe_parse_expr(ans_num_str)
+    except _MathInputError as e:
+        return _result(
+            "unverifiable", "pythagoras", input_str, submitted_answer,
+            reason=getattr(e, "reason", "invalid_syntax"), parser_invoked=True,
+            explanation_nl="Kan het ingeleverde antwoord niet verwerken.",
+        )
+
+   # Rounding instruction handling
+    places = None
+    if task_instruction:
+        try:
+            places = _parse_rounding_places(task_instruction)
+        except _MathInputError as e:
+            return _result(
+                "unverifiable", "pythagoras", input_str, submitted_answer,
+                reason=e.reason, explanation_nl=e.message_nl,
+            )
+
+    # Check if student named a wrong side
+    if given_label is not None and given_label != target_name:
+        is_val_correct = False
+        if places is not None:
+            try:
+                matched, _ = _rounded_compare(exact_res, submitted_expr, places, ans_num_str)
+                is_val_correct = matched
+            except Exception:
+                is_val_correct = False
+        else:
+            is_val_correct = bool(sp.simplify(submitted_expr - exact_res) == 0)
+
+        return _result(
+            "wrong", "pythagoras", input_str, submitted_answer,
+            exact_value=exact_value_str, hypotenuse=hyp_name, target_side=target_name,
+            misconception="wrong_side", value_correct=is_val_correct, parser_invoked=True,
+            explanation_nl=f"De berekende zijde is {target_name}, niet {label_match.group(1).upper()}.",
+        )
+
+    if places is not None:
+        try:
+            matched, rounding_fields = _rounded_compare(exact_res, submitted_expr, places, ans_num_str)
+        except _MathInputError as e:
+            return _result("unverifiable", "pythagoras", input_str, submitted_answer,
+                            reason=e.reason, explanation_nl=e.message_nl)
+        if matched:
+            out = _result("verified", "pythagoras", input_str, submitted_answer,
+                        exact_value=exact_value_str, hypotenuse=hyp_name, target_side=target_name,
+                        explanation_nl="Correct afgerond.", **rounding_fields)
+            if effective_unit:
+                out["unit"] = effective_unit
+            return out
+        if rounding_fields.get("misconception") == "not_rounded":
+            return _result("wrong", "pythagoras", input_str, submitted_answer,
+                        exact_value=exact_value_str, hypotenuse=hyp_name, target_side=target_name,
+                        explanation_nl="De waarde klopt, maar er is niet afgerond zoals de opdracht vraagt.",
+                        **rounding_fields)
+    elif bool(sp.simplify(submitted_expr - exact_res) == 0):
+        out = _result("verified", "pythagoras", input_str, submitted_answer,
+                      exact_value=exact_value_str, hypotenuse=hyp_name, target_side=target_name,
+                      explanation_nl=f"Correct, het antwoord is {exact_value_str}.")
+        if effective_unit:
+            out["unit"] = effective_unit
+        return out
+
+    common = dict(exact_value=exact_value_str, hypotenuse=hyp_name, target_side=target_name)
+    if (added_instead_res is not None and sp.simplify(added_instead_res - exact_res) != 0
+            and sp.simplify(submitted_expr - added_instead_res) == 0):
+        return _result("wrong", "pythagoras", input_str, submitted_answer, **common,
+                       misconception="pythagoras_added_instead_of_subtracted",
+                       explanation_nl=f"Voor een rechthoekszijde trek je de kwadraten af: {target_name}² = {hyp_name}² − ... .")
+    if (forgot_sqrt_res is not None and sp.simplify(forgot_sqrt_res - exact_res) != 0
+            and sp.simplify(submitted_expr - forgot_sqrt_res) == 0):
+        return _result("wrong", "pythagoras", input_str, submitted_answer, **common,
+                       misconception="forgot_square_root",
+                       explanation_nl=f"Dit is {target_name}²; trek nog de wortel.")
+    out = _result("wrong", "pythagoras", input_str, submitted_answer, **common,
+                  explanation_nl=f"Onjuist, {target_name} = {exact_value_str}.")
+    if effective_unit:
+        out["unit"] = effective_unit
+    return out
+    
+
 def verify_geometry(
     check_type: str,
     input: str = "",
@@ -1954,6 +2258,10 @@ def verify_geometry(
         )
     if check_type == "midpoint":
         return _verify_midpoint(
+            input, submitted_answer, task_instruction, values
+        )
+    if check_type == "pythagoras":
+        return _verify_pythagoras(
             input, submitted_answer, task_instruction, values
         )
     return _result(

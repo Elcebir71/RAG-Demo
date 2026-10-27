@@ -107,6 +107,23 @@ conventions:
       Period notation for decimals returns ambiguous_dot_notation.
       Misconceptions include subtracting coordinates instead of adding (midpoint_subtracted_coordinates)
       or forgetting to divide by 2 (midpoint_forgot_divide_by_two).
+  pythagoras:
+    input_format: "rechthoekige driehoek <naam>: hoek <hoekpunt> = 90°"  # e.g. "rechthoekige driehoek ABC: hoek B = 90°"
+    rules: >-
+      Verifies side lengths in a right-angled triangle using the Pythagorean theorem: a² + b² = c².
+      The right-angled vertex determines which side is the hypotenuse:
+        - hoek B = 90° implies legs AB and BC, and hypotenuse AC.
+        - hoek A = 90° implies legs AB and AC, and hypotenuse BC.
+        - hoek C = 90° implies legs AC and BC, and hypotenuse AB.
+      Values dictionary must provide 2 known sides.
+      Submitted answer can have side prefix ("AC = 10") or bare value ("10").
+      Exact square root values (e.g. "√41") are serialized as "sqrt(41)".
+      Rounding is accepted only when requested by task_instruction (decimal places or significant figures).
+      Misconceptions:
+        - Added squares when finding a leg instead of subtracting (pythagoras_added_instead_of_subtracted).
+        - Forgot to take square root of sum/difference (pythagoras_forgot_sqrt).
+        - Wrong unit dimension or mismatched unit (wrong_unit_dimension, wrong_unit).
+      Invalid triangles (given leg >= hypotenuse) return impossible_triangle.
 cases:
   # =========================================================================
   # G1 — Degrees and angle sums (angle_sum)
@@ -1306,3 +1323,259 @@ cases:
     submitted_answer: "30"
     task_instruction: "Rond af op tientallen."
     expected: {status: unverifiable, reason: rounding_instruction_not_supported}
+# =========================================================================
+  # G7 — Pythagoras in right-angled triangles (pythagoras)
+  # =========================================================================
+  - id: GEO111
+    title: Calculate hypotenuse in right triangle (3-4-5 multiple)
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AB: "6", BC: "8"}
+    submitted_answer: "AC = 10"
+    expected:
+      status: verified
+      exact_value: "10"
+
+  - id: GEO112
+    title: Calculate hypotenuse with bare number answer
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AB: "6", BC: "8"}
+    submitted_answer: "10"
+    expected:
+      status: verified
+      exact_value: "10"
+
+  - id: GEO113
+    title: Calculate a leg when hypotenuse and other leg are given
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AC: "10", AB: "6"}
+    submitted_answer: "BC = 8"
+    expected:
+      status: verified
+      exact_value: "8"
+
+  - id: GEO114
+    title: Calculate hypotenuse when hoek A is the right angle
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek ABC: hoek A = 90°"
+    values: {AB: "5", AC: "12"}
+    submitted_answer: "BC = 13"
+    expected:
+      status: verified
+      exact_value: "13"
+
+  - id: GEO115
+    title: Calculate hypotenuse exact with square root
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek KLM: hoek L = 90°"
+    values: {KL: "4", LM: "5"}
+    submitted_answer: "KM = √41"
+    expected:
+      status: verified
+      exact_value: "sqrt(41)"
+
+  - id: GEO116
+    title: Calculate hypotenuse rounded with explicit rounding instruction
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek KLM: hoek L = 90°"
+    values: {KL: "4", LM: "5"}
+    submitted_answer: "6,4"
+    task_instruction: "Rond af op 1 decimaal."
+    expected:
+      status: verified
+      exact_value: "sqrt(41)"
+      rounded_answer: "6,4"
+      decimal_places: 1
+
+  - id: GEO117
+    title: Rounded answer without rounding instruction is wrong
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek KLM: hoek L = 90°"
+    values: {KL: "4", LM: "5"}
+    submitted_answer: "6,4"
+    expected:
+      status: wrong
+      exact_value: "sqrt(41)"
+
+  - id: GEO118
+    title: Calculate hypotenuse rounded to significant figures
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek PQR: hoek Q = 90°"
+    values: {PQ: "3", QR: "6"}
+    submitted_answer: "6,71"
+    task_instruction: "Rond af op 3 significante cijfers."
+    expected:
+      status: verified
+      exact_value: "3*sqrt(5)"
+      rounded_answer: "6,71"
+      significant_figures: 3
+
+  - id: GEO119
+    title: Misconception - Added squares instead of subtracted when finding a leg
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AC: "10", AB: "6"}
+    submitted_answer: "BC = √136"
+    expected:
+      status: wrong
+      exact_value: "8"
+      misconception: pythagoras_added_instead_of_subtracted
+
+  - id: GEO120
+    title: Misconception - Forgot to take square root
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AB: "6", BC: "8"}
+    submitted_answer: "AC = 100"
+    expected:
+      status: wrong
+      exact_value: "10"
+      misconception: forgot_square_root
+
+  - id: GEO121
+    title: Pythagoras with Dutch decimal comma
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AB: "1,5", BC: "2,0"}
+    submitted_answer: "AC = 2,5"
+    expected:
+      status: verified
+      exact_value: "5/2"
+
+  - id: GEO122
+    title: Pythagoras with matching length units
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AB: "6 cm", BC: "8 cm"}
+    submitted_answer: "AC = 10 cm"
+    expected:
+      status: verified
+      exact_value: "10"
+      unit: "cm"
+
+  - id: GEO123
+    title: Misconception - Wrong unit dimension (area for length)
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AB: "6 cm", BC: "8 cm"}
+    submitted_answer: "AC = 10 cm²"
+    expected:
+      status: wrong
+      exact_value: "10"
+      misconception: wrong_unit_dimension
+
+  - id: GEO124
+    title: Misconception - Mismatched unit (m instead of cm)
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AB: "6 cm", BC: "8 cm"}
+    submitted_answer: "AC = 10 m"
+    expected:
+      status: wrong
+      exact_value: "10"
+      misconception: wrong_unit
+
+  - id: GEO125
+    title: Impossible triangle - Given leg is longer than hypotenuse
+    check_type: pythagoras
+    curriculum_scope: tool_boundary_test
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AC: "5", AB: "8"}
+    submitted_answer: "BC = 6"
+    expected:
+      status: unverifiable
+      reason: impossible_triangle
+
+  - id: GEO126
+    title: Missing submitted answer returns exact value
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AB: "6", BC: "8"}
+    expected:
+      status: unverifiable
+      reason: no_claim_to_check
+      exact_value: "10"
+
+  - id: GEO127
+    title: Ambiguous period notation in values is rejected
+    check_type: pythagoras
+    curriculum_scope: tool_boundary_test
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AB: "6.5", BC: "8"}
+    submitted_answer: "10"
+    expected:
+      status: unverifiable
+      reason: ambiguous_dot_notation
+      parser_invoked: false
+  
+  - id: GEO128
+    title: Letter as a side length never crashes
+    check_type: pythagoras
+    curriculum_scope: tool_boundary_test
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AB: "x", BC: "8"}
+    submitted_answer: "AC = 10"
+    expected: {status: unverifiable}
+
+  - id: GEO129
+    title: Result names the hypotenuse
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AB: "6", BC: "8"}
+    submitted_answer: "AC = 10"
+    expected: {status: verified, hypotenuse: "AC", target_side: "AC"}
+
+  - id: GEO130
+    title: Right value under the wrong side
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AB: "6", BC: "8"}
+    submitted_answer: "AB = 10"
+    expected: {status: wrong, misconception: wrong_side, value_correct: true}
+
+  - id: GEO131
+    title: Forgot the square root (shared name)
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AB: "4", BC: "5"}
+    submitted_answer: "AC = 41"
+    expected: {status: wrong, misconception: forgot_square_root}
+
+  - id: GEO132
+    title: Three sides given
+    check_type: pythagoras
+    curriculum_scope: tool_boundary_test
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AB: "6", BC: "8", AC: "10"}
+    submitted_answer: "AC = 10"
+    expected: {status: unverifiable, reason: too_many_values}
+
+  - id: GEO133
+    title: Exact root when rounding is asked
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    values: {AB: "4", BC: "5"}
+    submitted_answer: "AC = √41"
+    task_instruction: "Rond af op 2 decimalen."
+    expected: {status: wrong, misconception: not_rounded, value_correct: true}

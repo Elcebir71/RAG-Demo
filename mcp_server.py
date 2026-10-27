@@ -42,6 +42,7 @@ CheckType = Literal[
     "cosine_rule",
     "point_distance",
     "midpoint",
+    "pythagoras",
 ]
 
 
@@ -170,6 +171,12 @@ def verify_math_tool(
         ambiguous case returns ambiguous_triangle: tell the teacher.
       - point_distance / midpoint: "A(1, 2), B(4, 6)"; with decimal
         commas use ';' inside a point: "A(1,5; 2)".
+      - pythagoras: "rechthoekige driehoek ABC: hoek B = 90°", two sides in
+        substitutions, e.g. {"AB": "6", "BC": "8"}; answer "AC = 10". The
+        right angle you give decides the hypotenuse; the result echoes it
+        (hypotenuse, target_side) so the teacher can check your reading of
+        the figure. Misconceptions: wrong_side (right value, wrong side),
+        pythagoras_added_instead_of_subtracted, forgot_square_root.
 
     Percentages elsewhere: 25% = 25/100, "25% van 80" = 20. "80 + 15%" is
     ambiguous (calculator 92, algebra 80,15) and returns ambiguous_percentage:

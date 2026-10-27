@@ -2760,7 +2760,7 @@ def _verify_counting(input_value: str, submitted_answer: str | None) -> dict[str
 # Geometry lives in its own package; verify_math forwards these check types to it.
 GEOMETRY_CHECK_TYPES = frozenset({
     "angle_sum", "shape_formula", "scale_factor", "trig_ratio",
-    "sine_rule", "cosine_rule", "point_distance", "midpoint",
+    "sine_rule", "cosine_rule", "point_distance", "midpoint", "pythagoras",
 })
 
 

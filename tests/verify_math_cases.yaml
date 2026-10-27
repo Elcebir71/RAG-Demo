@@ -24,7 +24,7 @@ conventions:
     - scientific_notation     # value or calculation; the answer must be a · 10^n with 1 ≤ |a| < 10
     - number_theory           # "ggd: 12, 18", "kgv: 4, 6", "priemfactoren: 360", "delers: 12", "priemgetal: 91"
     - counting                # "met volgorde, zonder terugleggen: 10, 3"; order and replacement must both be stated
-    - angle_sum, shape_formula, scale_factor, trig_ratio, sine_rule, cosine_rule, point_distance, midpoint
+    - angle_sum, shape_formula, scale_factor, trig_ratio, sine_rule, cosine_rule, point_distance, midpoint, pythagoras
       # geometry: forwarded to geometry.verify_geometry; substitutions are passed as its values
     - percentage_change       # percentage increase/decrease, input "old -> new", answer like "25%", "-20%" or "20% afname"
   inequalities: >-
@@ -2601,3 +2601,12 @@ cases:
     submitted_answer: "20 m/s"
     task_instruction: "Rond af op 2 decimalen."
     expected: {status: verified}
+
+  - id: VM300
+    title: Geometry Pythagoras with a named right angle through verify_math
+    check_type: pythagoras
+    curriculum_scope: vwo1_candidate
+    input: "rechthoekige driehoek ABC: hoek B = 90°"
+    substitutions: {AB: "6", BC: "8"}
+    submitted_answer: "AB = 10"
+    expected: {status: wrong, misconception: wrong_side, hypotenuse: "AC", target_side: "AC"}
