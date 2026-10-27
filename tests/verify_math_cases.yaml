@@ -52,6 +52,12 @@ conventions:
     in this check type; elsewhere a(b + c) stays a times (b + c). misconception
     negative_base_not_in_brackets: the student squared -2 as -(2²), as happens when -2² is typed on a
     calculator without brackets.
+  quadratic: >-
+    Quadratic equations use equation_solution. abc-formule answers may be written with roots and 'of' or
+    '±': x = (-3 ± √13)/2. Rounded answers need a rounding instruction. misconception sign_of_b: the
+    answer is (b ± √D)/2a instead of (-b ± √D)/2a (all solutions have the wrong sign);
+    divided_by_2_not_2a: the answer is (-b ± √D)/2 while a is not 1. The discriminant D = b² - 4ac is
+    checked with formula_substitution.
   roots: >-
     √ applies to the next number, letter or bracket: √12 + 1 is (√12) + 1, √(x + 1) needs brackets.
     A root form is simplified when no square factor is left under the root (2√3, not √12) and no
@@ -1635,3 +1641,97 @@ cases:
     input: "f(x) = 3x"
     submitted_answer: "6"
     expected: {status: unverifiable, reason: invalid_function}
+
+  # --- Quadratic equations and the abc-formule (tests written before the code, 27 Oct 2026) ---
+  - id: VM190
+    title: abc-formule, two roots with 'of'
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "x² + 3x - 1 = 0"
+    submitted_answer: "x = (-3 + √13)/2 of x = (-3 - √13)/2"
+    expected: {status: verified}
+
+  - id: VM191
+    title: abc-formule written with ±
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "x² + 3x - 1 = 0"
+    submitted_answer: "x = (-3 ± √13)/2"
+    expected: {status: verified}
+
+  - id: VM192
+    title: abc-formule rounded on request
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "2x² - 3x - 4 = 0"
+    submitted_answer: "x = 2,35 of x = -0,85"
+    task_instruction: "Rond af op 2 decimalen."
+    expected: {status: verified, decimal_places: 2}
+
+  - id: VM193
+    title: Rounded roots without a rounding instruction
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "2x² - 3x - 4 = 0"
+    submitted_answer: "x = 2,35 of x = -0,85"
+    expected: {status: wrong}
+
+  - id: VM194
+    title: Negative discriminant
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "x² + x + 1 = 0"
+    submitted_answer: "geen oplossing"
+    expected: {status: verified, solution_set: {kind: empty}}
+
+  - id: VM195
+    title: Discriminant zero, one root
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "x² - 6x + 9 = 0"
+    submitted_answer: "x = 3"
+    expected: {status: verified}
+
+  - id: VM196
+    title: Sign of b not changed in the abc-formule
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "x² - 3x - 1 = 0"
+    submitted_answer: "x = (-3 ± √13)/2"
+    expected: {status: wrong, misconception: sign_of_b}
+    notes: "Correct is (3 ± √13)/2: -b = 3."
+
+  - id: VM197
+    title: Divided by 2 instead of 2a
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "2x² - 3x - 4 = 0"
+    submitted_answer: "x = (3 ± √41)/2"
+    expected: {status: wrong, misconception: divided_by_2_not_2a}
+    notes: "Correct is (3 ± √41)/4."
+
+  - id: VM198
+    title: Discriminant with a negative b
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "D = b² - 4ac"
+    substitutions: {a: "2", b: "-3", c: "-4"}
+    submitted_answer: "D = 41"
+    expected: {status: verified}
+
+  - id: VM199
+    title: Discriminant with (-3)² taken as -9
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "D = b² - 4ac"
+    substitutions: {a: "2", b: "-3", c: "-4"}
+    submitted_answer: "D = 23"
+    expected: {status: wrong}
+
+  - id: VM200
+    title: Only one of two roots
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "x² + 3x - 1 = 0"
+    submitted_answer: "x = (-3 + √13)/2"
+    expected: {status: wrong}

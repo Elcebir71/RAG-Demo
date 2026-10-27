@@ -931,6 +931,8 @@ def _verify_equation_solution(input_value: str, submitted_answer: str | None, ta
     # The answer must give the whole solution set: one valid root is not enough
     # when another real root has been left out (x² = 9 needs 3 and -3).
     correct = _matches_solution_set([expr for _, expr in answers], solutions, places)
+    misconception = None if correct else _quadratic_misconception(
+        lhs - rhs, unknown, [expr for _, expr in answers], solutions, places)
     rounded_answer: str | None = None
     if (places is not None and isinstance(solutions, sp.FiniteSet) and len(solutions) == 1
             and next(iter(solutions)).is_number):
@@ -949,6 +951,14 @@ def _verify_equation_solution(input_value: str, submitted_answer: str | None, ta
         if rounded_answer is not None:
             fields["rounded_answer"] = rounded_answer
     fields["variable"] = unknown.name
+    if misconception == "sign_of_b":
+        fields["misconception"] = misconception
+        fields["explanation_nl"] = ("Alle oplossingen hebben het verkeerde teken: in de abc-formule staat -b. "
+                                    "Het juiste antwoord is het tegengestelde van wat er staat.")
+    elif misconception == "divided_by_2_not_2a":
+        fields["misconception"] = misconception
+        fields["explanation_nl"] = ("In de abc-formule wordt gedeeld door 2a, niet door 2. "
+                                    "Deel de gegeven oplossingen nog door a.")
     if answer_name is not None and answer_name != unknown.name:
         # Decision 27 Oct 2026: the equation is solved for a specific letter,
         # so a correct value under another letter is 'wrong'; value_correct
@@ -960,6 +970,32 @@ def _verify_equation_solution(input_value: str, submitted_answer: str | None, ta
                                         f"schrijf {unknown.name} = ... in plaats van {answer_name} = ... .")
         correct = False
     return _result("verified" if correct else "wrong", "equation_solution", input_value, **fields)
+
+
+def _quadratic_misconception(difference: sp.Expr, unknown: sp.Symbol, candidates: Sequence[sp.Expr],
+                             solutions: sp.Set, places: int | None) -> str | None:
+    """Recognise two abc-formule slips from the whole answer set.
+
+    (b ± √D)/2a gives the negatives of the real roots; (-b ± √D)/2 gives a times
+    the real roots. Only for a quadratic with two different real roots.
+    """
+    if not isinstance(solutions, sp.FiniteSet) or len(solutions) != 2:
+        return None
+    try:
+        poly = sp.Poly(sp.expand(difference), unknown)
+    except sp.PolynomialError:
+        return None
+    if poly.degree() != 2 or any(coefficient.free_symbols for coefficient in poly.all_coeffs()):
+        return None
+    negated = sp.FiniteSet(*[-root for root in solutions])
+    if negated != solutions and _matches_solution_set(candidates, negated, places):
+        return "sign_of_b"
+    leading = poly.LC()
+    if leading not in (1, -1):
+        scaled = sp.FiniteSet(*[leading * root for root in solutions])
+        if _matches_solution_set(candidates, scaled, places):
+            return "divided_by_2_not_2a"
+    return None
 
 
 def _solve_target(numerator: sp.Expr, target: sp.Symbol) -> tuple[sp.Expr, bool]:

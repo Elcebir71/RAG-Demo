@@ -28,7 +28,7 @@ paragraphs:
     verify_math: {status: partial, check_types: [function_notation, formula_substitution, formula_rewrite], tests: [VM175, VM177, VM183, VM185], note: "f(x) notation: values and equations f(x) = g(x). 'Line through two points' (rc from two coordinates) is planned."}
   - id: B1.2
     title: "Tweedegraadsfuncties en tweedegraadsvergelijkingen"
-    verify_math: {status: partial, check_types: [equation_solution, step_validation], note: "Rational roots work. abc-formule answers with √ need √ support; two-root answers 'x = 2 of x = -3' planned."}
+    verify_math: {status: supported, check_types: [equation_solution, formula_substitution], tests: [VM190, VM191, VM192, VM194, VM195, VM196, VM197, VM198], note: "abc-formule answers with √, 'of' and ±; discriminant via D = b² - 4ac; flags sign_of_b and divided_by_2_not_2a."}
   - id: B1.3
     title: "Werken met parameters"
     verify_math: {status: planned, note: "'Voor welke p heeft ... twee oplossingen' needs conditions on a parameter (discriminant)."}

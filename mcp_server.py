@@ -62,6 +62,9 @@ def verify_math_tool(
         e.g. "-2(x - 3) = -2x + 6" or "2(a + b) = 2a + 2b".
       - equation_solution: input is an equation, submitted_answer is the
         claimed solution, e.g. "x = 4", "geen oplossing" or "alle getallen".
+        abc-formule answers: "x = (-3 ± √13)/2". misconception 'sign_of_b':
+        b used instead of -b; 'divided_by_2_not_2a': divided by 2 instead of
+        2a. The discriminant: formula_substitution with "D = b² - 4ac".
       - step_validation: steps is the list of equation lines, the original
         equation first, e.g. ["3x - 5 = 7", "3x = 12", "x = 4"].
       - formula_substitution: input is a letter formula, substitutions the

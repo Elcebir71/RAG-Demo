@@ -411,7 +411,7 @@ so a teacher sees the AI answer and the verification result separately.
 | `arithmetic` | `-3/4 + 2/3 × (-1,5)` = `-7/4` | exact fractions, no rounding |
 | `answer_equivalence` | `-7/4` vs `-1,75` | same value, different notation |
 | `expression_equivalence` | `-2(x - 3) = -2x + 6` | identity in x |
-| `equation_solution` | `3x - 5 = 7`, answer `x = 4` | full real solution set, incl. `geen oplossing` / `alle getallen` |
+| `equation_solution` | `3x - 5 = 7`, answer `x = 4`; `x² + 3x - 1 = 0`, answer `x = (-3 ± √13)/2` | full real solution set, incl. `geen oplossing` / `alle getallen`; flags abc-formule slips (`sign_of_b`, `divided_by_2_not_2a`) |
 | `step_validation` | `3x - 5 = 7 → 3x = 12 → x = 3` | first invalid step + steps consistent after the error |
 | `formula_substitution` | `v = s / t`, `s=120`, `t=2` → `v = 60`; or `v=60`, `s=120` → `t = 2` | checks a student's result, also when the unknown is in a denominator; a zero denominator is rejected |
 | `formula_rewrite` | `v = s / t` → `s = v · t` | checks the rewrite and returns conditions such as `t ≠ 0` |
@@ -443,7 +443,7 @@ verify_math("step_validation", steps=["-2(x - 3) = 4", "-2x - 6 = 4", "-2x = 10"
 # {'status': 'wrong', 'failed_step': 2, 'steps_consistent_after_error': [3, 4], ...}
 ```
 
-**Tests:** 188 acceptance cases in `tests/verify_math_cases.yaml` (correct and deliberately wrong
+**Tests:** 199 acceptance cases in `tests/verify_math_cases.yaml` (correct and deliberately wrong
 solutions, unsafe input, ambiguous notation, denominator conditions and unit conversions) plus unit tests:
 `python -m pytest -q`.
 
