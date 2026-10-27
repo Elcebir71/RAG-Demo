@@ -19,6 +19,7 @@ conventions:
     - unit_conversion         # convert a quantity between metric units (fixed unit table, incl. km/u, ml/mL)
     - inequality_solution     # solve an inequality in one letter; answer like "x < 3", "-3 < x ≤ 3", "geen oplossing"
     - system_solution         # two linear equations in two letters; answer like "x = 3, y = 1" or "x = 3 en y = 1"
+    - function_notation       # f(x) = ... definitions plus one task: a value f(-2), or an equation f(x) = 8 / f(x) = g(x)
     - percentage_change       # percentage increase/decrease, input "old -> new", answer like "25%", "-20%" or "20% afname"
   inequalities: >-
     Signs <, >, ≤, ≥ (also <= and >=). One letter, linear for now; a double inequality like
@@ -43,6 +44,14 @@ conventions:
   money: >-
     A euro sign in an answer is ignored for arithmetic (€288, € 300,00); the input itself stays a plain
     calculation such as 240 : 0,8.
+  functions: >-
+    Input is one or more definitions like f(x) = 2x² - 3x + 1, then the task, separated by ';' or a new
+    line. A task f(-2) asks for a value; the answer is "15" or "f(-2) = 15". A task with '=' such as
+    f(x) = 8 or f(x) = g(x) is an equation; the answer is written as for equation_solution ("x = 4",
+    "x = 2 of x = -2", "geen oplossing"). f(a + 1) gives an expression in a. Function notation is only read
+    in this check type; elsewhere a(b + c) stays a times (b + c). misconception
+    negative_base_not_in_brackets: the student squared -2 as -(2²), as happens when -2² is typed on a
+    calculator without brackets.
   roots: >-
     √ applies to the next number, letter or bracket: √12 + 1 is (√12) + 1, √(x + 1) needs brackets.
     A root form is simplified when no square factor is left under the root (2√3, not √12) and no
@@ -1503,3 +1512,126 @@ cases:
     input: "2/3 : (4/5)"
     submitted_answer: "5/6"
     expected: {status: verified}
+
+
+  # --- Function notation f(x) (tests written before the code, 27 Oct 2026) ---
+  - id: VM175
+    title: Function value at a negative number
+    check_type: function_notation
+    curriculum_scope: vwo1_candidate
+    input: "f(x) = 2x² - 3x + 1; f(-2)"
+    submitted_answer: "15"
+    expected: {status: verified, exact_value: "15"}
+
+  - id: VM176
+    title: Function value written with f(-2) =
+    check_type: function_notation
+    curriculum_scope: vwo1_candidate
+    input: "f(x) = 2x² - 3x + 1; f(-2)"
+    submitted_answer: "f(-2) = 15"
+    expected: {status: verified}
+
+  - id: VM177
+    title: Negative number squared without brackets
+    check_type: function_notation
+    curriculum_scope: vwo1_candidate
+    input: "f(x) = 2x² - 3x + 1; f(-2)"
+    submitted_answer: "-1"
+    expected: {status: wrong, exact_value: "15", misconception: negative_base_not_in_brackets}
+    notes: "2 · -2² = -8 instead of 2 · (-2)² = 8."
+
+  - id: VM178
+    title: Right value under the wrong argument
+    check_type: function_notation
+    curriculum_scope: vwo1_candidate
+    input: "f(x) = 2x² - 3x + 1; f(-2)"
+    submitted_answer: "f(2) = 15"
+    expected: {status: wrong, argument_mismatch: true}
+
+  - id: VM179
+    title: Function with a letter in the denominator
+    check_type: function_notation
+    curriculum_scope: vwo1_candidate
+    input: "g(t) = (t + 1)/(t - 2); g(4)"
+    submitted_answer: "5/2"
+    expected: {status: verified}
+
+  - id: VM180
+    title: Function value that does not exist
+    check_type: function_notation
+    curriculum_scope: vwo1_candidate
+    input: "g(t) = (t + 1)/(t - 2); g(2)"
+    submitted_answer: "bestaat niet"
+    expected: {status: verified, reason: division_by_zero}
+
+  - id: VM181
+    title: Function value rounded on request
+    check_type: function_notation
+    curriculum_scope: vwo1_candidate
+    input: "h(t) = -4,9t² + 20t; h(1,5)"
+    submitted_answer: "19,0"
+    task_instruction: "Rond af op 1 decimaal."
+    expected: {status: verified, exact_value: "759/40", rounded_answer: "19,0"}
+
+  - id: VM182
+    title: No answer means nothing was checked
+    check_type: function_notation
+    curriculum_scope: vwo1_candidate
+    input: "f(x) = 2x² - 3x + 1; f(-2)"
+    expected: {status: unverifiable, reason: no_claim_to_check, exact_value: "15"}
+
+  - id: VM183
+    title: Solve f(x) = 8
+    check_type: function_notation
+    curriculum_scope: vwo1_candidate
+    input: "f(x) = 3x - 4; f(x) = 8"
+    submitted_answer: "x = 4"
+    expected: {status: verified}
+
+  - id: VM184
+    title: Solve f(x) = 0 with one root missing
+    check_type: function_notation
+    curriculum_scope: vwo1_candidate
+    input: "f(x) = x² - 4; f(x) = 0"
+    submitted_answer: "x = 2"
+    expected: {status: wrong}
+
+  - id: VM185
+    title: Intersection f(x) = g(x)
+    check_type: function_notation
+    curriculum_scope: vwo1_candidate
+    input: "f(x) = 2x + 1; g(x) = -x + 7; f(x) = g(x)"
+    submitted_answer: "x = 2"
+    expected: {status: verified}
+
+  - id: VM186
+    title: Expression as argument
+    check_type: function_notation
+    curriculum_scope: out_of_curriculum_tool_test
+    input: "f(x) = x²; f(a + 1)"
+    submitted_answer: "a² + 2a + 1"
+    expected: {status: verified}
+
+  - id: VM187
+    title: Expression as argument, square of a sum split
+    check_type: function_notation
+    curriculum_scope: out_of_curriculum_tool_test
+    input: "f(x) = x²; f(a + 1)"
+    submitted_answer: "a² + 1"
+    expected: {status: wrong}
+
+  - id: VM188
+    title: Function that was not defined
+    check_type: function_notation
+    curriculum_scope: vwo1_candidate
+    input: "f(x) = 3x; g(2)"
+    submitted_answer: "6"
+    expected: {status: unverifiable, reason: invalid_function}
+
+  - id: VM189
+    title: Definition without a task
+    check_type: function_notation
+    curriculum_scope: vwo1_candidate
+    input: "f(x) = 3x"
+    submitted_answer: "6"
+    expected: {status: unverifiable, reason: invalid_function}

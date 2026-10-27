@@ -14,7 +14,8 @@ Scope:
 - metric unit conversions from a fixed unit table (including Dutch km/u);
 - percentages: 25%, '25% van 80', and percentage change (80 -> 100 = 25%);
 - linear inequalities in one letter, also double ones (-4 < 2x + 2 ≤ 8);
-- systems of two linear equations in two letters (2x + y = 7; x - y = 2).
+- systems of two linear equations in two letters (2x + y = 7; x - y = 2);
+- function notation: f(x) = ... with a value f(-2) or an equation f(x) = g(x).
 
 This is a verification aid, not a proof of pedagogical correctness or of the
 semantic modelling of a word problem. See README.md for the limitations.
@@ -120,6 +121,7 @@ _REASON_NL = {
     "invalid_percentage_change": "Geef de oude en de nieuwe waarde als 'oud -> nieuw', bijvoorbeeld 80 -> 100, en het antwoord als percentage.",
     "invalid_inequality": "Voer één ongelijkheid in met <, >, ≤ of ≥, of een dubbele ongelijkheid zoals -4 < 2x + 2 ≤ 8.",
     "invalid_system": "Voer een stelsel in als twee vergelijkingen, gescheiden door ';' of een nieuwe regel, bijvoorbeeld 2x + y = 7; x - y = 2.",
+    "invalid_function": "Geef eerst de functie(s), bijvoorbeeld f(x) = 2x + 1, en daarna de opdracht, gescheiden door ';': f(3) of f(x) = 7. Gebruik alleen functies die gedefinieerd zijn.",
     "interval_notation_not_supported": "Intervalnotatie (zoals ⟨←, 3⟩ of [2, 5]) wordt nog niet gelezen; schrijf het antwoord als x < 3 of 2 ≤ x ≤ 5.",
 }
 
@@ -1860,6 +1862,203 @@ def _verify_system_solution(input_value: str, submitted_answer: str | None,
     return _result("wrong", check_type, input_value, **fields)
 
 
+# --- Function notation f(x) -------------------------------------------------
+# Only this check type reads f(...) as a function call. A call is replaced by
+# the definition with the argument in brackets, as a student would write it
+# out: f(x) = 2x² - 3x + 1 makes f(-2) the text (2(-2)² - 3(-2) + 1). The
+# normal safe parser then does the rest, including division by zero.
+_FUNC_DEF_RE = re.compile(r"\s*([A-Za-z])\s*\(\s*([A-Za-z])\s*\)\s*=\s*(.+?)\s*")
+_FUNC_CALL_ANSWER_RE = re.compile(r"\s*([A-Za-z])\s*\((.+)\)\s*=\s*(.+?)\s*")
+
+
+def _matching_paren(text: str, open_index: int) -> int:
+    depth = 0
+    for index in range(open_index, len(text)):
+        if text[index] == "(":
+            depth += 1
+        elif text[index] == ")":
+            depth -= 1
+            if depth == 0:
+                return index
+    raise _MathInputError("invalid_function")
+
+
+def _expand_calls(text: str, definitions: dict[str, tuple[str, str]], depth: int = 0) -> str:
+    """Replace every call f(...) of a defined function by its written-out definition."""
+    if depth > 3:
+        raise _MathInputError("invalid_function")
+    variables = {variable for variable, _ in definitions.values()}
+    out: list[str] = []
+    index = 0
+    while index < len(text):
+        char = text[index]
+        is_call = (char.isascii() and char.isalpha() and index + 1 < len(text) and text[index + 1] == "(")
+        if is_call and char in definitions:
+            close = _matching_paren(text, index + 1)
+            argument = text[index + 2:close]
+            if not argument.strip():
+                raise _MathInputError("invalid_function")
+            argument = _expand_calls(argument, definitions, depth + 1)
+            variable, body = definitions[char]
+            out.append("(" + body.replace(variable, f"({argument})") + ")")
+            index = close + 1
+            continue
+        if is_call and char not in variables:
+            previous = text[index - 1] if index > 0 else " "
+            if not (previous.isalnum() or previous == ")"):
+                # g(2) while only f is defined: a call of an unknown function.
+                raise _MathInputError("invalid_function")
+        out.append(char)
+        index += 1
+    return "".join(out)
+
+
+def _parse_function_input(input_value: Any) -> tuple[dict[str, tuple[str, str]], str]:
+    if not isinstance(input_value, str) or not input_value.strip():
+        raise _MathInputError("invalid_function")
+    if len(input_value) > MAX_INPUT_LENGTH:
+        raise _MathInputError("input_too_long")
+    parts = [part for part in _SYSTEM_SPLIT_RE.split(input_value.strip()) if part.strip()]
+    if len(parts) < 2:
+        raise _MathInputError("invalid_function")
+    definitions: dict[str, tuple[str, str]] = {}
+    for part in parts[:-1]:
+        match = _FUNC_DEF_RE.fullmatch(part)
+        if not match:
+            raise _MathInputError("invalid_function")
+        name, variable, body = match.groups()
+        if name in definitions or name == variable:
+            raise _MathInputError("invalid_function")
+        body = _normalize_percent_phrases(body)
+        ok, reason = _preflight(body)
+        if not ok:
+            raise _MathInputError(reason or "disallowed_characters_or_syntax")
+        definitions[name] = (variable, body)
+    return definitions, parts[-1].strip()
+
+
+def _single_call(task: str) -> tuple[str, str] | None:
+    """('f', '-2') when the task is exactly one call such as f(-2)."""
+    match = re.fullmatch(r"\s*([A-Za-z])\((.*)\)\s*", task)
+    if not match:
+        return None
+    open_index = task.index("(")
+    if _matching_paren(task, open_index) != len(task.rstrip()) - 1:
+        return None
+    return match.group(1), match.group(2)
+
+
+def _verify_function_notation(input_value: str, submitted_answer: str | None,
+                              task_instruction: str | None = None,
+                              variable: str | None = None) -> dict[str, Any]:
+    check_type = "function_notation"
+    try:
+        definitions, task = _parse_function_input(input_value)
+        expanded = _expand_calls(task, definitions)
+        places = _parse_rounding_places(task_instruction)
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc,
+                             parser_invoked=exc.reason not in _PREFLIGHT_REASONS | {"invalid_function"})
+
+    if "=" in task:
+        # An equation such as f(x) = 8 or f(x) = g(x): solved as equation_solution.
+        first_variable = next(iter(definitions.values()))[0]
+        result = _verify_equation_solution(expanded, submitted_answer, task_instruction,
+                                           variable or first_variable)
+        result["check_type"] = check_type
+        result["input"] = input_value
+        result["expanded_equation"] = expanded
+        return result
+
+    call = _single_call(task)
+    ok, reason = _preflight(expanded)
+    if not ok:
+        return _unverifiable(check_type, input_value, _MathInputError(reason or "disallowed_characters_or_syntax"))
+    try:
+        value = sp.simplify(_parse_expr(expanded, []))
+    except _MathInputError as exc:
+        if exc.reason == "division_by_zero":
+            if submitted_answer is None or not str(submitted_answer).strip():
+                return _result("unverifiable", check_type, input_value, reason="no_claim_to_check",
+                               explanation_nl="De functie bestaat niet voor dit getal (deling door nul); er is geen antwoord om te controleren.",
+                               parser_invoked=True)
+            undefined = _is_undefined_phrase(submitted_answer)
+            return _result("verified" if undefined else "wrong", check_type, input_value,
+                           reason=exc.reason, submitted_answer=submitted_answer, parser_invoked=True,
+                           explanation_nl=("De functiewaarde bestaat niet: de noemer wordt nul. Het antwoord zegt dit correct."
+                                           if undefined else "De functiewaarde bestaat niet: de noemer wordt nul."))
+        return _unverifiable(check_type, input_value, exc, parser_invoked=True)
+
+    fields: dict[str, Any] = {"exact_value": _serialize_exact(value), "parser_invoked": True}
+    if submitted_answer is None or not str(submitted_answer).strip():
+        return _result("unverifiable", check_type, input_value, **fields, reason="no_claim_to_check",
+                       explanation_nl=f"{_REASON_NL['no_claim_to_check']} De waarde is {_serialize_exact(value)}.")
+    fields["submitted_answer"] = submitted_answer
+
+    answer_text = submitted_answer
+    argument_mismatch = False
+    answer_call = _FUNC_CALL_ANSWER_RE.fullmatch(submitted_answer)
+    if answer_call:
+        name, argument_text, answer_text = answer_call.groups()
+        if call is None:
+            argument_mismatch = True
+        else:
+            try:
+                same_argument = (name == call[0] and sp.simplify(
+                    _safe_parse_expr(argument_text, allow_variable_denominators=True)
+                    - _safe_parse_expr(call[1], allow_variable_denominators=True)) == 0)
+            except _MathInputError:
+                same_argument = False
+            argument_mismatch = not same_argument
+
+    try:
+        if value.free_symbols:
+            answer = _safe_parse_expr(answer_text, allow_variable_denominators=True)
+            correct = sp.simplify(value - answer) == 0
+            rounding_fields: dict[str, Any] = {}
+        else:
+            answer = _numeric_value(answer_text)
+            correct, rounding_fields = _rounded_compare(value, answer, places, answer_text)
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc, parser_invoked=True)
+    fields.update(rounding_fields)
+
+    if argument_mismatch:
+        fields["argument_mismatch"] = True
+        fields["value_correct"] = correct
+        fields["explanation_nl"] = (f"Gevraagd is {task}; het antwoord noemt een ander getal tussen de haakjes. "
+                                    f"De juiste waarde is {_serialize_exact(value)}.")
+        return _result("wrong", check_type, input_value, **fields)
+    if correct:
+        fields["explanation_nl"] = f"Het antwoord klopt: {task} = {_serialize_exact(value)}."
+        return _result("verified", check_type, input_value, **fields)
+
+    if call is not None and not value.free_symbols:
+        name, argument_text = call
+        try:
+            argument = _numeric_value(argument_text)
+        except _MathInputError:
+            argument = None
+        if argument is not None and argument.is_negative:
+            variable_name, body = definitions[name]
+            unknown = _symbol(variable_name)
+            body_expr = _parse_expr(body, [])
+            size = abs(argument)
+            # What a calculator gives for -2² without brackets: -(2²).
+            careless = body_expr.replace(
+                lambda e: e.is_Pow and e.base == unknown and e.exp.is_Integer and e.exp.is_even and e.exp > 0,
+                lambda e: -(size ** e.exp))
+            careless = sp.simplify(careless.subs(unknown, argument))
+            if not careless.free_symbols and _rounded_compare(careless, answer, places, answer_text)[0]:
+                fields["misconception"] = "negative_base_not_in_brackets"
+                fields["explanation_nl"] = (f"Het lijkt erop dat ({_serialize_exact(argument)})² als "
+                                            f"-{_serialize_exact(size)}² is uitgerekend. Zet een negatief getal "
+                                            f"tussen haakjes. De juiste waarde is {_serialize_exact(value)}.")
+                return _result("wrong", check_type, input_value, **fields)
+    fields["explanation_nl"] = f"Het antwoord klopt niet: {task} = {_serialize_exact(value)}."
+    return _result("wrong", check_type, input_value, **fields)
+
+
 def verify_math(
     check_type: str,
     input: str = "",
@@ -1874,7 +2073,8 @@ def verify_math(
     Args:
         check_type: one of arithmetic, answer_equivalence, expression_equivalence,
             equation_solution, step_validation, formula_substitution, formula_rewrite,
-            unit_conversion, percentage_change, inequality_solution, system_solution.
+            unit_conversion, percentage_change, inequality_solution, system_solution,
+            function_notation.
         input: expression, equation or quantity; not used to infer a word problem's meaning.
         submitted_answer: the student's answer to compare, exactly as written.
         steps: explicit equation steps for step_validation. When omitted, an
@@ -1882,7 +2082,8 @@ def verify_math(
         task_instruction: optional Dutch rounding instruction, e.g.
             ``Rond af op 2 decimalen.`` or ``Rond af op 1 decimaal.``
         variable: the letter to solve for when an equation contains more than
-            one letter (equation_solution, step_validation, inequality_solution).
+            one letter (equation_solution, step_validation, inequality_solution,
+            function_notation).
         substitutions: values to fill in for formula_substitution, e.g.
             ``{"p": "3"}``.
 
@@ -1890,7 +2091,7 @@ def verify_math(
     """
     allowed_types = {"arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
                      "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
-                     "percentage_change", "inequality_solution", "system_solution"}
+                     "percentage_change", "inequality_solution", "system_solution", "function_notation"}
     if check_type not in allowed_types:
         return _unverifiable(str(check_type), input, _MathInputError("unsupported_math_form"))
     if not isinstance(input, str):
@@ -1916,6 +2117,8 @@ def verify_math(
         return _verify_inequality_solution(input, submitted_answer, task_instruction, variable)
     if check_type == "system_solution":
         return _verify_system_solution(input, submitted_answer, task_instruction)
+    if check_type == "function_notation":
+        return _verify_function_notation(input, submitted_answer, task_instruction, variable)
     return _verify_steps(input, steps, variable)
 
 
@@ -1927,7 +2130,8 @@ if __name__ == "__main__":
     cli = argparse.ArgumentParser(description="Conservative Dutch maths verifier")
     cli.add_argument("check_type", choices=["arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
                                             "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
-                                            "percentage_change", "inequality_solution", "system_solution"])
+                                            "percentage_change", "inequality_solution", "system_solution",
+                                            "function_notation"])
     cli.add_argument("input", help="Expression, equation, quantity, or arrow-delimited steps")
     cli.add_argument("--answer")
     cli.add_argument("--instruction")

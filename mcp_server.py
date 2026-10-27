@@ -29,6 +29,7 @@ CheckType = Literal[
     "percentage_change",
     "inequality_solution",
     "system_solution",
+    "function_notation",
 ]
 
 
@@ -98,6 +99,14 @@ def verify_math_tool(
         misconception 'values_swapped': right numbers, wrong letters;
         'missing_variable': one letter missing; satisfied_equations lists
         the equations (1, 2) the answer does fit.
+      - function_notation: input is the definition(s) and then the task,
+        separated by ';', e.g. "f(x) = 2x² - 3x + 1; f(-2)" (answer "15" or
+        "f(-2) = 15"), "f(x) = 3x - 4; f(x) = 8" (answer "x = 4") or
+        "f(x) = 2x + 1; g(x) = -x + 7; f(x) = g(x)". misconception
+        'negative_base_not_in_brackets': the student computed -2² instead of
+        (-2)²; argument_mismatch: the answer names another argument, e.g.
+        f(2) instead of f(-2). Use only this check type for f(x) notation:
+        elsewhere a(b + c) means a times (b + c).
 
     Percentages elsewhere: 25% = 25/100, "25% van 80" = 20. "80 + 15%" is
     ambiguous (calculator 92, algebra 80,15) and returns ambiguous_percentage:

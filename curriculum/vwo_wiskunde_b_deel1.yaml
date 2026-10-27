@@ -25,7 +25,7 @@ paragraphs:
     verify_math: {status: supported, check_types: [equation_solution, inequality_solution], note: "Linear equations (T12) and linear inequalities (T17), also double inequalities. Interval notation is not read yet."}
   - id: B1.1
     title: "Lineaire functies"
-    verify_math: {status: partial, check_types: [formula_substitution, formula_rewrite], note: "Values and rewriting work; f(x) notation and 'line through two points' are planned."}
+    verify_math: {status: partial, check_types: [function_notation, formula_substitution, formula_rewrite], tests: [VM175, VM177, VM183, VM185], note: "f(x) notation: values and equations f(x) = g(x). 'Line through two points' (rc from two coordinates) is planned."}
   - id: B1.2
     title: "Tweedegraadsfuncties en tweedegraadsvergelijkingen"
     verify_math: {status: partial, check_types: [equation_solution, step_validation], note: "Rational roots work. abc-formule answers with √ need √ support; two-root answers 'x = 2 of x = -3' planned."}
