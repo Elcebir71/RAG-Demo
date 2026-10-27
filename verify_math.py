@@ -13,7 +13,8 @@ Scope:
   with nonzero conditions from letters in a denominator;
 - metric unit conversions from a fixed unit table (including Dutch km/u);
 - percentages: 25%, '25% van 80', and percentage change (80 -> 100 = 25%);
-- linear inequalities in one letter, also double ones (-4 < 2x + 2 ≤ 8).
+- linear inequalities in one letter, also double ones (-4 < 2x + 2 ≤ 8);
+- systems of two linear equations in two letters (2x + y = 7; x - y = 2).
 
 This is a verification aid, not a proof of pedagogical correctness or of the
 semantic modelling of a word problem. See README.md for the limitations.
@@ -118,6 +119,7 @@ _REASON_NL = {
     "ambiguous_percentage": "Een getal plus of min een percentage (zoals 80 + 15%) is dubbelzinnig: 92 op een rekenmachine, 80,15 in de algebra. Schrijf 80 · 1,15 of 80 + 15% van 80.",
     "invalid_percentage_change": "Geef de oude en de nieuwe waarde als 'oud -> nieuw', bijvoorbeeld 80 -> 100, en het antwoord als percentage.",
     "invalid_inequality": "Voer één ongelijkheid in met <, >, ≤ of ≥, of een dubbele ongelijkheid zoals -4 < 2x + 2 ≤ 8.",
+    "invalid_system": "Voer een stelsel in als twee vergelijkingen, gescheiden door ';' of een nieuwe regel, bijvoorbeeld 2x + y = 7; x - y = 2.",
     "interval_notation_not_supported": "Intervalnotatie (zoals ⟨←, 3⟩ of [2, 5]) wordt nog niet gelezen; schrijf het antwoord als x < 3 of 2 ≤ x ≤ 5.",
 }
 
@@ -809,14 +811,16 @@ def _verify_arithmetic(check_type: str, input_value: str, submitted_answer: str 
             submitted_answer=submitted_answer,
             explanation_nl=f"De uitdrukking heeft wel een waarde: {_serialize_exact(value)}.",
         )
+    # A euro sign in the answer (€288, € 300,00) is not part of the number.
+    answer_text = re.sub(r"^\s*€\s*", "", submitted_answer) if isinstance(submitted_answer, str) else submitted_answer
     try:
-        answer = _answer_value(submitted_answer)
+        answer = _answer_value(answer_text)
         places = _parse_rounding_places(task_instruction)
     except _MathInputError as exc:
         return _unverifiable(check_type, input_value, exc, parser_invoked=True)
-    correct, rounding_fields = _rounded_compare(value, answer, places, submitted_answer)
+    correct, rounding_fields = _rounded_compare(value, answer, places, answer_text)
     fields.update(rounding_fields)
-    simplified = _is_simplified_root_form(submitted_answer)
+    simplified = _is_simplified_root_form(answer_text)
     if simplified is not None:
         fields["is_simplified"] = simplified
     return _result(
@@ -1680,6 +1684,182 @@ def _verify_inequality_solution(input_value: str, submitted_answer: str | None,
     return _result("wrong", check_type, input_value, **fields)
 
 
+# --- Systems of two linear equations ---------------------------------------
+_SYSTEM_SPLIT_RE = re.compile(r"\s*;\s*|\s*\n\s*")
+_SYSTEM_ANSWER_SPLIT_RE = re.compile(r"\s*;\s*|\s+en\s+|\s*\n\s*|\s*,\s*(?=[A-Za-z]\s*=)", re.IGNORECASE)
+_SYSTEM_ASSIGNMENT_RE = re.compile(r"\s*([A-Za-z])\s*=\s*(.+?)\s*")
+_INFINITE_PHRASES = {"oneindig veel oplossingen", "oneindig veel", "oneindig veel oplossing"}
+
+
+def _linear_coefficients(difference: sp.Expr, unknowns: Sequence[sp.Symbol]) -> tuple[sp.Expr, sp.Expr, sp.Expr]:
+    """a, b, c in a·u + b·v + c = 0; fails closed for anything that is not linear."""
+    try:
+        poly = sp.Poly(sp.expand(difference), *unknowns)
+    except sp.PolynomialError as exc:
+        raise _MathInputError("unsupported_solution_set") from exc
+    if poly.total_degree() > 1:
+        raise _MathInputError("unsupported_solution_set")
+    first, second = unknowns
+    a = poly.coeff_monomial(first)
+    b = poly.coeff_monomial(second)
+    c = poly.coeff_monomial(1)
+    for value in (a, b, c):
+        if value.free_symbols:
+            raise _MathInputError("unsupported_solution_set")
+    return sp.nsimplify(a), sp.nsimplify(b), sp.nsimplify(c)
+
+
+def _solve_system_input(input_value: Any):
+    """Returns (unknowns, differences, kind, values) with kind in unique / empty / infinite."""
+    if not isinstance(input_value, str) or not input_value.strip():
+        raise _MathInputError("invalid_system")
+    if len(input_value) > MAX_INPUT_LENGTH:
+        raise _MathInputError("input_too_long")
+    equations = [part for part in _SYSTEM_SPLIT_RE.split(input_value.strip()) if part.strip()]
+    if len(equations) != 2:
+        raise _MathInputError("invalid_system")
+    differences: list[sp.Expr] = []
+    for equation in equations:
+        denominators: list[sp.Expr] = []
+        root_conditions: list[sp.Expr] = []
+        lhs, rhs = _parse_equation(equation, denominators, root_conditions)
+        if denominators:
+            raise _MathInputError("variable_denominator_unsupported")
+        if root_conditions:
+            raise _MathInputError("unsupported_solution_set")
+        differences.append(sp.expand(lhs - rhs))
+    symbols: set = set()
+    for difference in differences:
+        symbols |= difference.free_symbols
+    if len(symbols) != 2:
+        # Three letters, or only one: not a system of two equations in two unknowns.
+        raise _MathInputError("unsupported_solution_set")
+    unknowns = sorted(symbols, key=lambda symbol: symbol.name)
+    (a1, b1, c1), (a2, b2, c2) = (_linear_coefficients(d, unknowns) for d in differences)
+    determinant = sp.simplify(a1 * b2 - a2 * b1)
+    if determinant != 0:
+        # Cramer's rule for a1·u + b1·v = -c1 and a2·u + b2·v = -c2.
+        first = sp.simplify((b1 * c2 - b2 * c1) / determinant)
+        second = sp.simplify((c1 * a2 - a1 * c2) / determinant)
+        return unknowns, differences, "unique", {unknowns[0].name: first, unknowns[1].name: second}
+    matrix = sp.Matrix([[a1, b1], [a2, b2]])
+    augmented = sp.Matrix([[a1, b1, c1], [a2, b2, c2]])
+    if matrix.rank() != augmented.rank():
+        return unknowns, differences, "empty", {}
+    return unknowns, differences, "infinite", {}
+
+
+def _serialize_system(kind: str, values: dict[str, sp.Expr]) -> dict[str, Any]:
+    if kind == "unique":
+        return {"kind": "unique", "values": {name: _serialize_exact(value) for name, value in values.items()}}
+    return {"kind": kind}
+
+
+def _system_nl(kind: str, values: dict[str, sp.Expr]) -> str:
+    if kind == "empty":
+        return "het stelsel heeft geen oplossing"
+    if kind == "infinite":
+        return "het stelsel heeft oneindig veel oplossingen"
+    return " en ".join(f"{name} = {_serialize_exact(value)}" for name, value in values.items())
+
+
+def _parse_system_answer(text: str) -> dict[str, sp.Expr]:
+    """Read 'x = 3, y = 1', 'x = 3 en y = 1' or 'x = 3; y = 1' (decimal commas allowed)."""
+    answers: dict[str, sp.Expr] = {}
+    for part in _SYSTEM_ANSWER_SPLIT_RE.split(text.strip()):
+        if not part.strip():
+            raise _MathInputError("invalid_answer")
+        match = _SYSTEM_ASSIGNMENT_RE.fullmatch(part)
+        if not match:
+            raise _MathInputError("invalid_answer")
+        name, value_text = match.groups()
+        if name in answers:
+            raise _MathInputError("invalid_answer")
+        try:
+            answers[name] = _numeric_value(value_text)
+        except _MathInputError as exc:
+            if exc.reason in _PREFLIGHT_REASONS:
+                raise
+            raise _MathInputError("invalid_answer") from exc
+    return answers
+
+
+def _verify_system_solution(input_value: str, submitted_answer: str | None,
+                            task_instruction: str | None = None) -> dict[str, Any]:
+    check_type = "system_solution"
+    try:
+        unknowns, differences, kind, values = _solve_system_input(input_value)
+        places = _parse_rounding_places(task_instruction)
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc,
+                             parser_invoked=exc.reason not in _PREFLIGHT_REASONS | {"invalid_system"})
+    solution_text = _system_nl(kind, values)
+    base: dict[str, Any] = {"solution_set": _serialize_system(kind, values), "parser_invoked": True}
+
+    if submitted_answer is None or not str(submitted_answer).strip():
+        error = _MathInputError("no_claim_to_check")
+        return _result("unverifiable", check_type, input_value, reason=error.reason,
+                       explanation_nl=f"{error.message_nl} De oplossing: {solution_text}.", **base)
+    base["submitted_answer"] = submitted_answer
+
+    phrase = " ".join(submitted_answer.strip().casefold().split())
+    if phrase in {"geen oplossing", "geen oplossingen"} or phrase in _INFINITE_PHRASES:
+        claimed = "empty" if phrase.startswith("geen") else "infinite"
+        correct = claimed == kind
+        return _result("verified" if correct else "wrong", check_type, input_value, **base,
+                       explanation_nl=(f"Het antwoord klopt: {solution_text}." if correct
+                                       else f"Het antwoord klopt niet: {solution_text}."))
+
+    try:
+        answers = _parse_system_answer(submitted_answer)
+    except _MathInputError as exc:
+        return _result("unverifiable", check_type, input_value, reason=exc.reason,
+                       explanation_nl=("Schrijf het antwoord met de letters erbij, bijvoorbeeld x = 3 en y = 1."
+                                       if exc.reason == "invalid_answer" else exc.message_nl), **base)
+
+    names = [symbol.name for symbol in unknowns]
+    fields = dict(base)
+    if places is not None:
+        fields["decimal_places"] = places
+    if kind != "unique":
+        fields["explanation_nl"] = f"Het antwoord geeft één oplossing, maar {solution_text}."
+        return _result("wrong", check_type, input_value, **fields)
+
+    unknown_letters = [name for name in answers if name not in names]
+    if unknown_letters:
+        fields["variable_mismatch"] = True
+        fields["explanation_nl"] = (f"Het stelsel gaat over {names[0]} en {names[1]}, maar het antwoord gebruikt "
+                                    f"{', '.join(unknown_letters)}. De oplossing: {solution_text}.")
+        return _result("wrong", check_type, input_value, **fields)
+    missing = [name for name in names if name not in answers]
+    if missing:
+        fields["misconception"] = "missing_variable"
+        fields["explanation_nl"] = (f"Het antwoord mist {', '.join(missing)}; een stelsel heeft een waarde "
+                                    f"voor beide letters nodig. De oplossing: {solution_text}.")
+        return _result("wrong", check_type, input_value, **fields)
+
+    def same(exact: sp.Expr, given: sp.Expr) -> bool:
+        return _rounded_compare(exact, given, places, "")[0]
+
+    if all(same(values[name], answers[name]) for name in names):
+        fields["explanation_nl"] = f"Het antwoord klopt: {solution_text}."
+        return _result("verified", check_type, input_value, **fields)
+
+    substitution = {symbol: answers[symbol.name] for symbol in unknowns}
+    fields["satisfied_equations"] = [index + 1 for index, difference in enumerate(differences)
+                                     if sp.simplify(difference.subs(substitution)) == 0]
+    if same(values[names[0]], answers[names[1]]) and same(values[names[1]], answers[names[0]]):
+        fields["misconception"] = "values_swapped"
+        explanation = f"De getallen kloppen, maar {names[0]} en {names[1]} zijn verwisseld."
+    elif fields["satisfied_equations"]:
+        explanation = (f"Het antwoord past alleen in vergelijking {fields['satisfied_equations'][0]}; "
+                       "controleer altijd beide vergelijkingen.")
+    else:
+        explanation = "Het antwoord past in geen van beide vergelijkingen."
+    fields["explanation_nl"] = f"{explanation} De oplossing: {solution_text}."
+    return _result("wrong", check_type, input_value, **fields)
+
+
 def verify_math(
     check_type: str,
     input: str = "",
@@ -1694,7 +1874,7 @@ def verify_math(
     Args:
         check_type: one of arithmetic, answer_equivalence, expression_equivalence,
             equation_solution, step_validation, formula_substitution, formula_rewrite,
-            unit_conversion, percentage_change, inequality_solution.
+            unit_conversion, percentage_change, inequality_solution, system_solution.
         input: expression, equation or quantity; not used to infer a word problem's meaning.
         submitted_answer: the student's answer to compare, exactly as written.
         steps: explicit equation steps for step_validation. When omitted, an
@@ -1710,7 +1890,7 @@ def verify_math(
     """
     allowed_types = {"arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
                      "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
-                     "percentage_change", "inequality_solution"}
+                     "percentage_change", "inequality_solution", "system_solution"}
     if check_type not in allowed_types:
         return _unverifiable(str(check_type), input, _MathInputError("unsupported_math_form"))
     if not isinstance(input, str):
@@ -1734,6 +1914,8 @@ def verify_math(
         return _verify_unit_conversion(input, submitted_answer, task_instruction)
     if check_type == "inequality_solution":
         return _verify_inequality_solution(input, submitted_answer, task_instruction, variable)
+    if check_type == "system_solution":
+        return _verify_system_solution(input, submitted_answer, task_instruction)
     return _verify_steps(input, steps, variable)
 
 
@@ -1745,7 +1927,7 @@ if __name__ == "__main__":
     cli = argparse.ArgumentParser(description="Conservative Dutch maths verifier")
     cli.add_argument("check_type", choices=["arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
                                             "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
-                                            "percentage_change", "inequality_solution"])
+                                            "percentage_change", "inequality_solution", "system_solution"])
     cli.add_argument("input", help="Expression, equation, quantity, or arrow-delimited steps")
     cli.add_argument("--answer")
     cli.add_argument("--instruction")

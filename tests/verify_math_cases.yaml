@@ -18,6 +18,7 @@ conventions:
     - formula_rewrite         # rewrite a formula for another letter (taken from the answer's left side)
     - unit_conversion         # convert a quantity between metric units (fixed unit table, incl. km/u, ml/mL)
     - inequality_solution     # solve an inequality in one letter; answer like "x < 3", "-3 < x ≤ 3", "geen oplossing"
+    - system_solution         # two linear equations in two letters; answer like "x = 3, y = 1" or "x = 3 en y = 1"
     - percentage_change       # percentage increase/decrease, input "old -> new", answer like "25%", "-20%" or "20% afname"
   inequalities: >-
     Signs <, >, ≤, ≥ (also <= and >=). One letter, linear for now; a double inequality like
@@ -26,6 +27,22 @@ conventions:
     right but the sign points the wrong way (often a negative coefficient without flipping);
     wrong_bound_type: the numbers are right but < and ≤ are mixed up. Dutch interval notation
     (⟨-3, 3]) is not read yet and returns unverifiable.
+  systems: >-
+    A stelsel is two equations separated by ';' or a new line, e.g. "2x + y = 7; x - y = 2". Two letters,
+    linear for now. The answer names every letter: "x = 3, y = 1", "x = 3 en y = 1" or "x = 3; y = 1".
+    A comma followed by a letter and '=' separates answers; any other comma is a decimal comma
+    (x = 2,5, y = 1,5). A bare pair like (3, 1) does not say which number is x and returns unverifiable.
+    solution_set kinds: unique (values per letter), empty ('geen oplossing') and infinite
+    ('oneindig veel oplossingen'). misconception values_swapped: the numbers are right but belong to
+    the other letter; satisfied_equations lists which equations (1, 2) the answer does fit, so a
+    teacher sees when only one equation was checked.
+  division_order: >-
+    ':' and '/' have the same priority and are read strictly from left to right, also when a fraction
+    follows: 2/3 : 4/5 is ((2/3) : 4) / 5 = 1/30. Dividing by a fraction needs brackets: 2/3 : (4/5).
+    Decision 27 Oct 2026 (Hakan); the MCP tool description tells the AI to add these brackets.
+  money: >-
+    A euro sign in an answer is ignored for arithmetic (€288, € 300,00); the input itself stays a plain
+    calculation such as 240 : 0,8.
   roots: >-
     √ applies to the next number, letter or bracket: √12 + 1 is (√12) + 1, √(x + 1) needs brackets.
     A root form is simplified when no square factor is left under the root (2√3, not √12) and no
@@ -1323,3 +1340,166 @@ cases:
     submitted_answer: "x ∈ ⟨←, 3⟩"
     expected: {status: unverifiable}
 
+  # --- Systems of two linear equations (tests written before the code, 27 Oct 2026) ---
+  - id: VM155
+    title: System of two linear equations
+    check_type: system_solution
+    curriculum_scope: vwo1_candidate
+    input: "2x + y = 7; x - y = 2"
+    submitted_answer: "x = 3, y = 1"
+    expected: {status: verified, solution_set: {kind: unique, values: {x: "3", y: "1"}}}
+
+  - id: VM156
+    title: Answer written with 'en'
+    check_type: system_solution
+    curriculum_scope: vwo1_candidate
+    input: "2x + y = 7; x - y = 2"
+    submitted_answer: "x = 3 en y = 1"
+    expected: {status: verified}
+
+  - id: VM157
+    title: Values swapped between the letters
+    check_type: system_solution
+    curriculum_scope: vwo1_candidate
+    input: "2x + y = 7; x - y = 2"
+    submitted_answer: "x = 1, y = 3"
+    expected: {status: wrong, misconception: values_swapped}
+
+  - id: VM158
+    title: Answer fits only the first equation
+    check_type: system_solution
+    curriculum_scope: vwo1_candidate
+    input: "2x + y = 7; x - y = 2"
+    submitted_answer: "x = 2, y = 3"
+    expected: {status: wrong, satisfied_equations: [1]}
+    notes: "2·2 + 3 = 7 holds, 2 - 3 = 2 does not: the student only checked the first equation."
+
+  - id: VM159
+    title: Only one letter given
+    check_type: system_solution
+    curriculum_scope: vwo1_candidate
+    input: "2x + y = 7; x - y = 2"
+    submitted_answer: "x = 3"
+    expected: {status: wrong, misconception: missing_variable}
+
+  - id: VM160
+    title: Equations on separate lines
+    check_type: system_solution
+    curriculum_scope: vwo1_candidate
+    input: "3x + 2y = 12\nx - y = -1"
+    submitted_answer: "x = 2; y = 3"
+    expected: {status: verified}
+
+  - id: VM161
+    title: Infinitely many solutions
+    check_type: system_solution
+    curriculum_scope: vwo1_candidate
+    input: "x + y = 3; 2x + 2y = 6"
+    submitted_answer: "oneindig veel oplossingen"
+    expected: {status: verified, solution_set: {kind: infinite}}
+
+  - id: VM162
+    title: No solution (parallel lines)
+    check_type: system_solution
+    curriculum_scope: vwo1_candidate
+    input: "x + y = 3; x + y = 5"
+    submitted_answer: "geen oplossing"
+    expected: {status: verified, solution_set: {kind: empty}}
+
+  - id: VM163
+    title: Decimal comma inside a comma-separated answer
+    check_type: system_solution
+    curriculum_scope: vwo1_candidate
+    input: "x + y = 4; x - y = 1"
+    submitted_answer: "x = 2,5, y = 1,5"
+    expected: {status: verified}
+
+  - id: VM164
+    title: Fraction solution
+    check_type: system_solution
+    curriculum_scope: vwo1_candidate
+    input: "3x + y = 5; x - y = 1"
+    submitted_answer: "x = 1 1/2 en y = 1/2"
+    expected: {status: verified, solution_set: {kind: unique, values: {x: "3/2", y: "1/2"}}}
+
+  - id: VM165
+    title: Other letters than x and y
+    check_type: system_solution
+    curriculum_scope: vwo1_candidate
+    input: "a + b = 10; a - b = 4"
+    submitted_answer: "a = 7, b = 3"
+    expected: {status: verified}
+
+  - id: VM166
+    title: Bare pair without letters is ambiguous
+    check_type: system_solution
+    curriculum_scope: vwo1_candidate
+    input: "2x + y = 7; x - y = 2"
+    submitted_answer: "(3, 1)"
+    expected: {status: unverifiable, reason: invalid_answer}
+
+  - id: VM167
+    title: Only one equation is not a system
+    check_type: system_solution
+    curriculum_scope: vwo1_candidate
+    input: "2x + y = 7"
+    submitted_answer: "x = 3, y = 1"
+    expected: {status: unverifiable, reason: invalid_system}
+
+  - id: VM168
+    title: Three letters in two equations
+    check_type: system_solution
+    curriculum_scope: out_of_curriculum_tool_test
+    input: "x + y + z = 3; x - y = 1"
+    submitted_answer: "x = 2, y = 1"
+    expected: {status: unverifiable, reason: unsupported_solution_set}
+
+  - id: VM169
+    title: Non-linear system is not supported yet
+    check_type: system_solution
+    curriculum_scope: out_of_curriculum_tool_test
+    input: "x² + y = 5; x - y = 1"
+    submitted_answer: "x = 2, y = 1"
+    expected: {status: unverifiable, reason: unsupported_solution_set}
+
+  - id: VM170
+    title: No answer means nothing was checked
+    check_type: system_solution
+    curriculum_scope: vwo1_candidate
+    input: "2x + y = 7; x - y = 2"
+    expected: {status: unverifiable, reason: no_claim_to_check, solution_set: {kind: unique, values: {x: "3", y: "1"}}}
+
+  # --- Findings from the blind ChatGPT test (27 Oct 2026) ---
+  - id: VM171
+    title: Euro sign in a wrong answer
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "240 : 0,8"
+    submitted_answer: "€288"
+    expected: {status: wrong, exact_value: "300"}
+    notes: "Found in the blind ChatGPT test: '€288' returned unverifiable (disallowed character)."
+
+  - id: VM172
+    title: Euro sign with a space and two decimals
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "240 : 0,8"
+    submitted_answer: "€ 300,00"
+    expected: {status: verified}
+
+  - id: VM173
+    title: Division by a fraction without brackets is read left to right
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "2/3 : 4/5"
+    submitted_answer: "1/30"
+    expected: {status: verified, exact_value: "1/30"}
+    notes: "Locks the decision: ':' and '/' left to right. A student who means 2/3 : (4/5) = 5/6 must write the brackets."
+
+  - id: VM174
+    title: Division by a fraction with brackets
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "2/3 : (4/5)"
+    submitted_answer: "5/6"
+    expected: {status: verified}

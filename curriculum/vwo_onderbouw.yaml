@@ -249,7 +249,7 @@ topics:
     hv: true
     typical_years: [3]
     evidence: ["Not in KERN 1A-2B; voorkennis in G&R vwo wiskunde B deel 1, H4"]
-    verify_math: {status: planned, note: "Needs a new check type for two equations and an answer like x = 2, y = 3."}
+    verify_math: {status: supported, check_types: [system_solution], tests: [VM155, VM157, VM158, VM161, VM162, VM163], note: "Two linear equations in two letters; answers like x = 3, y = 1. Non-linear systems planned."}
 
   - id: T17
     topic: "Ongelijkheden (eerst lineair)"

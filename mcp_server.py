@@ -28,6 +28,7 @@ CheckType = Literal[
     "unit_conversion",
     "percentage_change",
     "inequality_solution",
+    "system_solution",
 ]
 
 
@@ -89,6 +90,14 @@ def verify_math_tool(
         negative coefficient without flipping); 'wrong_bound_type': < and ≤
         mixed up. Interval notation (⟨←, 3⟩) returns
         interval_notation_not_supported: ask for the x < 3 form.
+      - system_solution: input is two linear equations separated by ';' or
+        a new line, e.g. "2x + y = 7; x - y = 2"; submitted_answer names both
+        letters, e.g. "x = 3, y = 1", "x = 3 en y = 1", "geen oplossing" or
+        "oneindig veel oplossingen". A bare pair "(3, 1)" is not accepted:
+        rewrite it with the letters only if the student's order is certain.
+        misconception 'values_swapped': right numbers, wrong letters;
+        'missing_variable': one letter missing; satisfied_equations lists
+        the equations (1, 2) the answer does fit.
 
     Percentages elsewhere: 25% = 25/100, "25% van 80" = 20. "80 + 15%" is
     ambiguous (calculator 92, algebra 80,15) and returns ambiguous_percentage:
@@ -117,7 +126,11 @@ def verify_math_tool(
     gave c² instead of c.
 
     Notation: decimal comma (1,5), mixed numbers (1 3/4), ':' for division,
-    '×' or '·' for multiplication. A period inside a number (1.000) is
+    '×' or '·' for multiplication. ':' and '/' are read strictly from left
+    to right, also when a fraction follows: "2/3 : 4/5" is ((2/3) : 4) / 5.
+    When a student divides by a fraction, put that fraction in brackets:
+    "2/3 : (4/5)", "(-1/3)² : (2/9)". A euro sign in an answer (€288) is
+    ignored for arithmetic. A period inside a number (1.000) is
     rejected as ambiguous.
 
     task_instruction: optional, e.g. "Rond af op 2 decimalen." Pass it only

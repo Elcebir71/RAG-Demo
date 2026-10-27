@@ -79,10 +79,10 @@ paragraphs:
   # --- H4 Vergelijkingen en herleidingen ---
   - id: B4.0
     title: "Voorkennis: stelsels lineaire vergelijkingen"
-    verify_math: {status: planned, note: "Onderbouw T16: new check type for two equations and 'x = 2, y = 3'."}
+    verify_math: {status: supported, check_types: [system_solution], note: "Two linear equations in two letters (onderbouw T16)."}
   - id: B4.1
     title: "Stelsels vergelijkingen"
-    verify_math: {status: planned, note: "Same check type as B4.0, also with non-linear equations."}
+    verify_math: {status: partial, check_types: [system_solution], note: "Linear systems work; non-linear systems (x² + y = 5) return unsupported_solution_set for now."}
   - id: B4.2
     title: "Hogeregraadsvergelijkingen"
     verify_math: {status: partial, check_types: [equation_solution, step_validation], note: "Whole and rational roots work; roots with √ or 'x = ... of x = ...' answers planned."}

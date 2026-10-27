@@ -416,6 +416,7 @@ so a teacher sees the AI answer and the verification result separately.
 | `formula_substitution` | `v = s / t`, `s=120`, `t=2` → `v = 60`; or `v=60`, `s=120` → `t = 2` | checks a student's result, also when the unknown is in a denominator; a zero denominator is rejected |
 | `formula_rewrite` | `v = s / t` → `s = v · t` | checks the rewrite and returns conditions such as `t ≠ 0` |
 | `inequality_solution` | `5 - 2x > 1`, answer `x < 2`; `-4 < 2x + 2 ≤ 8`, answer `-3 < x ≤ 3` | linear inequalities, also double ones; flags a sign that was not flipped (`direction_reversed`) and `<`/`≤` mixed up (`wrong_bound_type`) |
+| `system_solution` | `2x + y = 7; x - y = 2`, answer `x = 3, y = 1` | two linear equations in two letters, incl. `geen oplossing` / `oneindig veel oplossingen`; flags swapped values and answers that fit only one equation |
 | `percentage_change` | `80 → 100` = `25%`; `100 → 80` = `-20%` or `20% afname` | percentage increase/decrease; flags dividing by the new value |
 | `unit_conversion` | `72 km/u` → `20 m/s`, `1 dm³` → `1 L` | exact conversions for metric length, mass, area, volume (litres included, `ml` or `mL`), time (`u` or `h`) and speed (`km/u`); rounding only when the task asks for it |
 
@@ -424,7 +425,7 @@ When the tool cannot check something reliably, it says so instead of guessing.
 
 **Dutch school notation:** decimal comma (`1,5`), mixed numbers (`1 3/4`), `:` for division,
 `×` / `·`, Unicode minus, `²`, percentages (`25%`, `25% van 80`), roots (`√12`, `2√3`, `√(x + 1)`;
-`is_simplified` says whether a root form is finished, and `√(x + 1)` adds the condition `x + 1 ≥ 0`). `1.000` is rejected as ambiguous
+`is_simplified` says whether a root form is finished, and `√(x + 1)` adds the condition `x + 1 ≥ 0`). `:` and `/` are read from left to right (`2/3 : 4/5` = 1/30; write `2/3 : (4/5)`). `1.000` is rejected as ambiguous
 (thousands separator or decimal), and so is `80 + 15%` (92 on a calculator, 80,15 in algebra).
 Formula rewrites retain nonzero conditions from variable denominators; equation-solving and
 step-validation still return unverifiable for such denominators when they cannot safely report a
@@ -441,7 +442,7 @@ verify_math("step_validation", steps=["-2(x - 3) = 4", "-2x - 6 = 4", "-2x = 10"
 # {'status': 'wrong', 'failed_step': 2, 'steps_consistent_after_error': [3, 4], ...}
 ```
 
-**Tests:** 153 acceptance cases in `tests/verify_math_cases.yaml` (correct and deliberately wrong
+**Tests:** 173 acceptance cases in `tests/verify_math_cases.yaml` (correct and deliberately wrong
 solutions, unsafe input, ambiguous notation, denominator conditions and unit conversions) plus unit tests:
 `python -m pytest -q`.
 
