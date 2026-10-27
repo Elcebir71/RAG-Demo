@@ -16,6 +16,10 @@ conventions:
     - step_validation
     - formula_substitution    # put given values into a formula, compare with submitted_answer
     - formula_rewrite         # rewrite a formula for another letter (taken from the answer's left side)
+    - unit_conversion         # convert a quantity between metric units (fixed unit table, incl. km/u, ml/mL)
+  conditions: >-
+    Nonzero conditions from letters in a denominator are reported in their simplest readable form:
+    constant factors are dropped (2x ≠ 0 becomes x ≠ 0) and duplicates removed.
   letters: >-
     Any single letter can be a variable (a, b, p, t, K ...); letters are case-sensitive.
     e and i are ordinary variables, except any power of e (e², e^x) and i to a power of 2 or more (i²),
@@ -307,8 +311,8 @@ cases:
     check_type: expression_equivalence
     curriculum_scope: tool_boundary_test
     input: "x / x = 1"
-    expected: {status: unverifiable, reason: variable_denominator_unsupported, parser_invoked: true}
-    notes: "The expression is undefined at x=0; parser simplification must not erase that restriction."
+    expected: {status: verified, equivalent: true, domain_restrictions: ["x ≠ 0"]}
+    notes: "The identity is checked on its valid domain; cancellation must retain x ≠ 0."
   - id: VM038
     title: Two letters that are not an identity
     check_type: expression_equivalence
@@ -343,7 +347,8 @@ cases:
     check_type: expression_equivalence
     curriculum_scope: tool_boundary_test
     input: "6 / (2x) = 3 / x"
-    expected: {status: unverifiable, reason: variable_denominator_unsupported, parser_invoked: true}
+    expected: {status: verified, equivalent: true, domain_restrictions: ["x ≠ 0"]}
+    notes: "Both sides are equivalent where their denominators are nonzero; 2x ≠ 0 and x ≠ 0 are the same condition."
   - id: VM043
     title: Saying "kan niet" for an expression that has a value
     check_type: arithmetic
@@ -404,7 +409,7 @@ cases:
       is_solved_form: false
       final_answer_correct: null
 
-  # --- Letters other than x (tests written before the code: these fail until implemented) ---
+  # --- Letters other than x ---
   - id: VM049
     title: Distributing over two letters
     check_type: expression_equivalence
@@ -519,15 +524,6 @@ cases:
     submitted_answer: "kosten = 17"
     expected: {status: unverifiable, reason: word_variables_not_supported}
 
-  - id: VM062
-    title: Letter in the denominator is not supported yet
-    check_type: formula_rewrite
-    curriculum_scope: vwo1_candidate
-    input: "v = s / t"
-    submitted_answer: "s = v · t"
-    expected: {status: unverifiable, reason: variable_denominator_unsupported}
-    notes: "Planned later: accept with the condition t ≠ 0."
-
   - id: VM063
     title: e is an ordinary variable in basic algebra
     check_type: equation_solution
@@ -640,4 +636,169 @@ cases:
     input: "w = 4p + 10"
     substitutions: {p: "3"}
     expected: {status: unverifiable, reason: no_claim_to_check, exact_value: "22", target_variable: "w"}
+
+
+  # --- Variable denominators and practical unit conversions ---
+  - id: VM076
+    title: Rewrite v = s/t for s and preserve t nonzero
+    check_type: formula_rewrite
+    curriculum_scope: vwo1_candidate
+    input: "v = s / t"
+    submitted_answer: "s = v · t"
+    expected: {status: verified, conditions: ["t ≠ 0"]}
+
+  - id: VM077
+    title: Rewrite v = s/t for t and state all conditions
+    check_type: formula_rewrite
+    curriculum_scope: vwo1_candidate
+    input: "v = s / t"
+    submitted_answer: "t = s / v"
+    expected: {status: verified, conditions: ["s ≠ 0", "v ≠ 0"]}
+    notes: "t ≠ 0 in the original formula means s/v ≠ 0, which with v ≠ 0 is s ≠ 0."
+
+  - id: VM078
+    title: Substitute a zero denominator is undefined
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "v = s / t"
+    substitutions: {s: "12", t: "0"}
+    submitted_answer: "v = 0"
+    expected: {status: unverifiable, reason: division_by_zero}
+
+  - id: VM079
+    title: Substitute values into speed distance time formula
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "v = s / t"
+    substitutions: {s: "120", t: "2"}
+    submitted_answer: "v = 60"
+    expected: {status: verified, exact_value: "60", target_variable: "v"}
+
+  - id: VM080
+    title: Convert kilometres to metres exactly
+    check_type: unit_conversion
+    curriculum_scope: vwo1_candidate
+    input: "2,5 km"
+    submitted_answer: "2500 m"
+    expected: {status: verified, exact_value: "2500", target_unit: "m", source_unit: "km"}
+
+  - id: VM081
+    title: Convert speed from kilometres per hour to metres per second
+    check_type: unit_conversion
+    curriculum_scope: vwo1_candidate
+    input: "72 km/h"
+    submitted_answer: "20 m/s"
+    expected: {status: verified, exact_value: "20", target_unit: "m/s", source_unit: "km/h"}
+
+  - id: VM082
+    title: Convert capacity exactly
+    check_type: unit_conversion
+    curriculum_scope: vwo1_candidate
+    input: "1,25 L"
+    submitted_answer: "1250 mL"
+    expected: {status: verified, exact_value: "1250", target_unit: "mL", source_unit: "L"}
+
+  - id: VM083
+    title: Incorrect unit conversion answer
+    check_type: unit_conversion
+    curriculum_scope: vwo1_candidate
+    input: "2,5 km"
+    submitted_answer: "250 m"
+    expected: {status: wrong, exact_value: "2500", target_unit: "m"}
+
+  - id: VM084
+    title: Reject conversion between different dimensions
+    check_type: unit_conversion
+    curriculum_scope: tool_boundary_test
+    input: "3 km"
+    submitted_answer: "3000 g"
+    expected: {status: unverifiable, reason: unit_mismatch}
+
+  - id: VM085
+    title: Do not simplify a variable denominator into a numeric arithmetic claim
+    check_type: arithmetic
+    curriculum_scope: tool_boundary_test
+    input: "x / x"
+    submitted_answer: "1"
+    expected: {status: unverifiable, reason: variable_denominator_unsupported}
+    notes: "A variable expression must not become a bare numeric claim when SymPy cancels x/x."
+
+  # --- Dutch notation for units, litres as volume, rounding, and t from v = s/t ---
+  - id: VM086
+    title: Dutch speed unit km/u
+    check_type: unit_conversion
+    curriculum_scope: vwo1_candidate
+    input: "72 km/u"
+    submitted_answer: "20 m/s"
+    expected: {status: verified, exact_value: "20", target_unit: "m/s", source_unit: "km/u"}
+
+  - id: VM087
+    title: One cubic decimetre is one litre
+    check_type: unit_conversion
+    curriculum_scope: vwo1_candidate
+    input: "1 dm³"
+    submitted_answer: "1 L"
+    expected: {status: verified, exact_value: "1", target_unit: "L"}
+
+  - id: VM088
+    title: Lowercase litre units
+    check_type: unit_conversion
+    curriculum_scope: vwo1_candidate
+    input: "500 ml"
+    submitted_answer: "0,5 l"
+    expected: {status: verified, exact_value: "1/2", target_unit: "l"}
+
+  - id: VM089
+    title: Rounded speed conversion when rounding is asked for
+    check_type: unit_conversion
+    curriculum_scope: vwo1_candidate
+    input: "50 km/u"
+    submitted_answer: "13,89 m/s"
+    task_instruction: "Rond af op 2 decimalen."
+    expected: {status: verified, exact_value: "125/9", rounded_answer: "13,89", decimal_places: 2}
+
+  - id: VM090
+    title: Rounded speed conversion without a rounding instruction
+    check_type: unit_conversion
+    curriculum_scope: vwo1_candidate
+    input: "50 km/u"
+    submitted_answer: "13,89 m/s"
+    expected: {status: wrong, exact_value: "125/9"}
+    notes: "Same policy as VM023: approximations are only accepted when rounding is asked for."
+
+  - id: VM091
+    title: Calculate t from v = s / t
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "v = s / t"
+    substitutions: {v: "60", s: "120"}
+    submitted_answer: "t = 2"
+    expected: {status: verified, exact_value: "2", target_variable: "t"}
+    notes: "The unknown sits in the denominator; the formula is brought to one fraction before solving."
+
+  - id: VM092
+    title: Inverted ratio when calculating t
+    check_type: formula_substitution
+    curriculum_scope: vwo1_candidate
+    input: "v = s / t"
+    substitutions: {v: "60", s: "120"}
+    submitted_answer: "t = 0,5"
+    expected: {status: wrong, exact_value: "2", target_variable: "t"}
+    misconception: "Computed v / s instead of s / v."
+
+  - id: VM093
+    title: Hours written as u
+    check_type: unit_conversion
+    curriculum_scope: vwo1_candidate
+    input: "2,5 u"
+    submitted_answer: "150 min"
+    expected: {status: verified, exact_value: "150", target_unit: "min"}
+
+  - id: VM094
+    title: Litres to cubic centimetres
+    check_type: unit_conversion
+    curriculum_scope: vwo1_candidate
+    input: "1 L"
+    submitted_answer: "1000 cm³"
+    expected: {status: verified, exact_value: "1000", target_unit: "cm³"}
 
