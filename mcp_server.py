@@ -176,7 +176,10 @@ def verify_math_tool(
     ask which one is meant. Rounding instructions ("Rond af op 2 decimalen",
     "Rond af op 1 decimaal", "Rond af op 3 significante cijfers") work for
     every check type that compares a number. With significant figures the
-    result reports significant_figures instead of decimal_places.
+    result reports significant_figures instead of decimal_places. When
+    rounding is asked, an unrounded exact answer is 'wrong' with
+    misconception not_rounded and value_correct true: tell the teacher the
+    value itself is right.
 
     Letters: any single letter can be a variable (case-sensitive); 'ab' means
     a times b. e and i are variables too, but any power of e (e², e^x) and

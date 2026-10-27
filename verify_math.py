@@ -718,10 +718,12 @@ def _matches_solution_set(candidates: Sequence[sp.Expr], solutions: sp.Set, plac
         return False
     for candidate in candidates:
         for index, solution in enumerate(remaining):
-            if sp.simplify(candidate - solution) == 0:
-                break
-            if (places is not None and candidate.is_number and solution.is_number
-                    and sp.simplify(candidate - _rounded_rational(solution, places)) == 0):
+            # With a rounding instruction the rounded value is required
+            # (x = 3,3 for 10/3); without one, the exact value.
+            if places is None or not (candidate.is_number and solution.is_number):
+                if sp.simplify(candidate - solution) == 0:
+                    break
+            elif sp.simplify(candidate - _rounded_rational(solution, places)) == 0:
                 break
         else:
             return False
@@ -830,16 +832,21 @@ def _rounded_compare(exact: sp.Expr, answer: sp.Expr, places: int | None,
     When the answer is written as a percentage (33,33%), rounding is applied to
     the percentage number, not to the fraction 0,3333.
     """
-    if sp.simplify(exact - answer) == 0:
-        return True, {}
     if places is None:
-        return False, {}
+        return sp.simplify(exact - answer) == 0, {}
     percent = answer_text.strip().endswith("%")
     scale = 100 if percent else 1
     rounded = _rounded_rational(exact * scale, places)
     display = _rounded_display(exact * scale, places) + ("%" if percent else "")
     matched = sp.simplify(answer * scale - rounded) == 0
-    return matched, {**_rounding_fields(places), "rounded_answer": display}
+    fields: dict[str, Any] = {**_rounding_fields(places), "rounded_answer": display}
+    if not matched and sp.simplify(exact - answer) == 0:
+        # Decision 27 Oct 2026: when the task asks for rounding, the exact
+        # unrounded value does not follow the instruction (12345 for 3
+        # significant figures). value_correct tells the teacher it is right.
+        fields["misconception"] = "not_rounded"
+        fields["value_correct"] = True
+    return matched, fields
 
 
 _UNDEFINED_PHRASES = {"kan niet", "bestaat niet", "niet mogelijk", "ongedefinieerd", "niet gedefinieerd"}
@@ -1007,6 +1014,9 @@ def _verify_equation_solution(input_value: str, submitted_answer: str | None, ta
     correct = _matches_solution_set([expr for _, expr in answers], solutions, places)
     misconception = None if correct else _quadratic_misconception(
         lhs - rhs, unknown, [expr for _, expr in answers], solutions, places)
+    if (not correct and misconception is None and places is not None
+            and _matches_solution_set([expr for _, expr in answers], solutions, None)):
+        misconception = "not_rounded"
     rounded_answer: str | None = None
     if (places is not None and isinstance(solutions, sp.FiniteSet) and len(solutions) == 1
             and next(iter(solutions)).is_number):
@@ -1025,7 +1035,10 @@ def _verify_equation_solution(input_value: str, submitted_answer: str | None, ta
         if rounded_answer is not None:
             fields["rounded_answer"] = rounded_answer
     fields["variable"] = unknown.name
-    if misconception == "sign_of_b":
+    if misconception == "not_rounded":
+        fields["misconception"] = misconception
+        fields["value_correct"] = True
+    elif misconception == "sign_of_b":
         fields["misconception"] = misconception
         fields["explanation_nl"] = ("Alle oplossingen hebben het verkeerde teken: in de abc-formule staat -b. "
                                     "Het juiste antwoord is het tegengestelde van wat er staat.")
@@ -1427,7 +1440,10 @@ def _verify_unit_conversion(input_value: str, submitted_answer: str | None,
         rounded_match = sp.simplify(answer_number - _rounded_rational(exact_value, places)) == 0
         fields.update(_rounding_fields(places))
         fields["rounded_answer"] = _rounded_display(exact_value, places)
-    correct = bool(exact_match or rounded_match)
+    correct = bool(rounded_match) if places is not None else exact_match
+    if places is not None and exact_match and not rounded_match:
+        fields["misconception"] = "not_rounded"
+        fields["value_correct"] = True
     return _result(
         "verified" if correct else "wrong", check_type, input_value, **fields,
         explanation_nl=("De omrekening klopt exact." if exact_match else
@@ -2441,7 +2457,7 @@ def _verify_scientific_notation(input_value: str, submitted_answer: str | None,
 
     correct, rounding_fields = _rounded_compare(value, answer_value, places, "")
     fields.update(rounding_fields)
-    fields["value_correct"] = correct
+    fields["value_correct"] = correct or bool(rounding_fields.get("value_correct"))
     if correct and normalized:
         fields["explanation_nl"] = f"Het antwoord klopt en staat in wetenschappelijke notatie.{expected_text}"
         return _result("verified", check_type, input_value, **fields)
@@ -2748,7 +2764,7 @@ GEOMETRY_CHECK_TYPES = frozenset({
 })
 
 
-def verify_math(
+def _dispatch_verify(
     check_type: str,
     input: str = "",
     submitted_answer: str | None = None,
@@ -2824,6 +2840,25 @@ def verify_math(
     if check_type == "counting":
         return _verify_counting(input, submitted_answer)
     return _verify_steps(input, steps, variable)
+
+
+
+def verify_math(
+    check_type: str,
+    input: str = "",
+    submitted_answer: str | None = None,
+    steps: Sequence[str] | None = None,
+    task_instruction: str | None = None,
+    variable: str | None = None,
+    substitutions: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Verify one supported mathematical claim; the arguments are described in _dispatch_verify."""
+    result = _dispatch_verify(check_type, input, submitted_answer, steps, task_instruction, variable, substitutions)
+    if result.get("misconception") == "not_rounded":
+        rounded = result.get("rounded_answer")
+        result["explanation_nl"] = ("De waarde klopt, maar er is niet afgerond zoals de opdracht vraagt."
+                                    + (f" Afgerond: {rounded}." if rounded else ""))
+    return result
 
 
 if __name__ == "__main__":

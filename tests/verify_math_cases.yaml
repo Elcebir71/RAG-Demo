@@ -72,6 +72,11 @@ conventions:
     values can both be the modus ("5 en 8"); when every value occurs equally often the answer is
     "geen modus". Misconceptions: median_not_sorted (middle of the unsorted list), median_even_count
     (one of the two middle values instead of their mean), confused_with_median and confused_with_mean.
+  rounding_required: >-
+    When the task asks for rounding, the answer must be rounded: the exact unrounded value (12345 for
+    3 significant figures, 2/3 for 2 decimals) is wrong with misconception not_rounded and
+    value_correct true. An exact value that is already rounded (3 for 2 decimals) is fine.
+    Decision 27 Oct 2026 (Hakan).
   significant_figures: >-
     "Rond af op 3 significante cijfers." (also "1 significant cijfer") rounds to significant figures
     with half up, like the decimal rounding: 2/3 → 0,667, 12345 → 12300, 0,00075 → 0,0008,
@@ -2532,3 +2537,67 @@ cases:
     substitutions: {b: "5", c: "6", A: "60°"}
     submitted_answer: "a = √31"
     expected: {status: verified, exact_value: "sqrt(31)"}
+
+  # --- Rounding must be done when asked (from blind test 2, 27 Oct 2026) ---
+  - id: VM293
+    title: Exact value when 3 significant figures are asked
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "1234,5 × 10"
+    submitted_answer: "12345"
+    task_instruction: "Rond af op 3 significante cijfers."
+    expected: {status: wrong, misconception: not_rounded, value_correct: true}
+
+  - id: VM294
+    title: Fraction when 2 decimals are asked
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "2 : 3"
+    submitted_answer: "2/3"
+    task_instruction: "Rond af op 2 decimalen."
+    expected: {status: wrong, misconception: not_rounded, value_correct: true}
+
+  - id: VM295
+    title: Exact value that is already rounded
+    check_type: arithmetic
+    curriculum_scope: vwo1_candidate
+    input: "6 : 2"
+    submitted_answer: "3"
+    task_instruction: "Rond af op 2 decimalen."
+    expected: {status: verified}
+
+  - id: VM296
+    title: Exact solution when rounding is asked
+    check_type: equation_solution
+    curriculum_scope: vwo1_candidate
+    input: "3x = 10"
+    submitted_answer: "x = 10/3"
+    task_instruction: "Rond af op 1 decimaal."
+    expected: {status: wrong, misconception: not_rounded, value_correct: true}
+
+  - id: VM297
+    title: Exact mean when rounding is asked
+    check_type: statistics
+    curriculum_scope: vwo1_candidate
+    input: "gemiddelde: 4, 7, 8"
+    submitted_answer: "19/3"
+    task_instruction: "Rond af op 1 decimaal."
+    expected: {status: wrong, misconception: not_rounded, value_correct: true}
+
+  - id: VM298
+    title: Unrounded mantissa in scientific notation
+    check_type: scientific_notation
+    curriculum_scope: vwo1_candidate
+    input: "1234,5 × 10"
+    submitted_answer: "1,2345 · 10⁴"
+    task_instruction: "Rond af op 3 significante cijfers."
+    expected: {status: wrong, misconception: not_rounded, value_correct: true}
+
+  - id: VM299
+    title: Exact unit conversion that needs no rounding
+    check_type: unit_conversion
+    curriculum_scope: vwo1_candidate
+    input: "72 km/u"
+    submitted_answer: "20 m/s"
+    task_instruction: "Rond af op 2 decimalen."
+    expected: {status: verified}

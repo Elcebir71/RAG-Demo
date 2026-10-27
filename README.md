@@ -448,7 +448,7 @@ verify_math("step_validation", steps=["-2(x - 3) = 4", "-2x - 6 = 4", "-2x = 10"
 # {'status': 'wrong', 'failed_step': 2, 'steps_consistent_after_error': [3, 4], ...}
 ```
 
-**Tests:** 291 acceptance cases for verify_math and 110 for geometry (`tests/geometry/`) in `tests/verify_math_cases.yaml` (correct and deliberately wrong
+**Tests:** 298 acceptance cases for verify_math and 110 for geometry (`tests/geometry/`) in `tests/verify_math_cases.yaml` (correct and deliberately wrong
 solutions, unsafe input, ambiguous notation, denominator conditions and unit conversions) plus unit tests:
 `python -m pytest -q`.
 
