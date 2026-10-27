@@ -5,6 +5,12 @@ description: >-
   and what verify_math can check today. Used to plan verify_math and, later, as data for
   find_curriculum_targets.
 
+goal: >-
+  Finish line for verify_math: every topic of the onderbouw kerndoelen (including the
+  'Aanvulling havo-vwo' blocks) that is not out_of_scope has status 'supported'. The kerndoelen
+  are national and fixed for the end of onderbouw; the order per leerjaar is not, so the goal
+  is defined by kerndoel, not by year. verify_math itself does not depend on the year.
+
 sources:
   kerndoelen:
     title: "Kerndoelen rekenen en wiskunde, voortgezet onderwijs (definitieve conceptkerndoelen, herziene versie 2025)"
@@ -15,21 +21,55 @@ sources:
       Topic descriptions below are short paraphrases, not the official text. Always check the
       official SLO document before quoting a kerndoel. 'hv' marks content from the
       'Aanvulling havo-vwo' blocks; vmbo uses the kerndoelen without these blocks.
+  kerndoelen_2007:
+    title: "Kerndoelen onderbouw vo, wiskunde (kerndoel 19 t/m 27)"
+    publisher: SLO
+    url: "https://www.slo.nl/publish/pages/2827/concretisering-kerndoelen-wiskunde-kerndoelen-voor-de-onderbuw-vo.pdf"
+    note: >-
+      The previous set, still in use at schools that have not yet moved to the new kerndoelen
+      (transition until August 2031). Codes OB-19 .. OB-27. The mapping from topics to these
+      codes is our own reading, not an official table.
   method:
     title: "Getal & Ruimte (Noordhoff), 12e editie, vwo 1"
+    variant: "vwo (homogeneous class); to be confirmed from the book's cover"
     chapters_seen: ["H1 Figuren", "H2 Getallen en bewerkingen", "H3 Grafieken en formules", "H4 Rekenen in de praktijk", "H5 Lijnen en hoeken"]
     note: "Only chapter titles are used as labels; no exercises or text from the method are stored."
   method_2:
     title: "KERN Wiskunde, doorlopende leerlijn havo/vwo 1A, 1B, 2A, 2B (inhoudsopgaven)"
+    variant: "havo/vwo (dakpanklas); paragraphs marked VWO are vwo-only"
     note: >-
-      Used to check the proposed years for leerjaar 1 and 2. Paragraphs marked 'VWO' in this
+      Used to check the typical years for leerjaar 1 and 2. Paragraphs marked 'VWO' in this
       method are vwo-only. Cited below as KERN 1A..2B with paragraph numbers; titles only.
 
+  method_3:
+    title: "Math4All, havo/vwo 1,2 (2026, adapted to the new kerndoelen)"
+    url: "https://www.math4all.nl/overzichten/havo-vwo-1-2/59"
+    variant: "havo/vwo, leerjaar 1 and 2 together (no split per year)"
+    note: >-
+      Public material in four domains: Rekenen (re), Meten en tekenen (me), Grafieken en
+      formules (gr), Informatie verwerken (if). Cited as M4A re5.2 etc. Evidence that a topic
+      belongs to leerjaar 1-2, not to one specific year. Titles only; Math4All is free for
+      non-commercial use, its content is not copied.
+
 conventions:
-  kerndoel_codes: "VO-10A = kerndoel 10, onderdeel A. The kerndoelen are set for the end of onderbouw, not per year."
-  vwo_years: >-
-    Proposed leerjaar, based on the usual order in methods. 'confirmed: false' until a teacher
-    has checked it against the method the school uses; methods and editions differ.
+  kerndoel_codes: >-
+    VO-10A = new kerndoel 10, onderdeel A (in the law from 2026). OB-22 = kerndoel 22 of the
+    2007 set. Both are given because schools switch between August 2026 and August 2031.
+    The kerndoelen are set for the end of onderbouw, not per year.
+  method_variants: >-
+    Methods print separate books for havo/vwo (dakpanklas) and vwo classes, and editions differ.
+    Evidence from a method is only valid for the edition and variant named in sources. There is
+    no state approval of textbooks (vrijheid van onderwijs, artikel 23 Grondwet); SLO sets the
+    goals, schools and publishers choose how to reach them.
+  typical_years: >-
+    The leerjaar in which methods usually treat a topic (evidence lists the methods checked).
+    Only an example order: schools choose their own method and order, so the real year comes
+    from a school profile (method, edition, chapters per year), confirmed by a teacher.
+    Used for generating exercises at the right level and for find_curriculum_targets, never
+    by verify_math.
+  ordering: >-
+    New verify_math work is ordered by dependency first (√ before Pythagoras and the
+    abc-formule) and then by how early and widely a topic appears in the methods.
   verify_math_status:
     supported: "verify_math checks this today, with acceptance tests"
     partial: "some forms can be checked; the note says which"
@@ -41,30 +81,30 @@ topics:
   - id: T01
     topic: "Rekenen met de vier bewerkingen, negatieve getallen, volgorde van bewerkingen"
     kerndoel: VO-10A
+    kerndoel_2007: [OB-22]
     hv: false
-    vwo_years: [1]
+    typical_years: [1]
     method_chapter: "H2 Getallen en bewerkingen"
-    evidence: ["KERN 1A 1.1-1.2"]
-    confirmed: false
+    evidence: ["KERN 1A 1.1-1.2", "M4A re1.1-1.3, re1.6, re4.1-4.5"]
     verify_math: {status: supported, check_types: [arithmetic], tests: [VM001, VM004, VM031]}
 
   - id: T02
     topic: "Breuken, decimale getallen en gemengde getallen"
     kerndoel: VO-10A
+    kerndoel_2007: [OB-22]
     hv: false
-    vwo_years: [1]
+    typical_years: [1]
     method_chapter: "H2 Getallen en bewerkingen"
-    evidence: ["KERN 1A 1.3-1.4"]
-    confirmed: false
+    evidence: ["KERN 1A 1.3-1.4", "M4A re2.1-2.6"]
     verify_math: {status: supported, check_types: [arithmetic, answer_equivalence], tests: [VM001, VM002, VM021, VM022]}
 
   - id: T03
     topic: "Machten en rekenregels voor machten"
     kerndoel: VO-10A
+    kerndoel_2007: [OB-22]
     hv: false
-    vwo_years: [1, 2]
-    evidence: ["KERN 1A 1.5", "KERN 2A 1.2", "KERN 2B 8.1-8.2"]
-    confirmed: false
+    typical_years: [1, 2]
+    evidence: ["KERN 1A 1.5", "KERN 2A 1.2", "KERN 2B 8.1-8.2", "M4A re5.1, re5.4, gr3.2"]
     verify_math:
       status: partial
       check_types: [arithmetic]
@@ -74,20 +114,20 @@ topics:
   - id: T04
     topic: "Wortels, wortels herleiden"
     kerndoel: VO-10A
+    kerndoel_2007: [OB-22]
     hv: false
-    vwo_years: [2]
-    evidence: ["KERN 2A 1.3-1.4", "KERN 2B 8.4 (VWO)"]
-    confirmed: false
+    typical_years: [2]
+    evidence: ["KERN 2A 1.3-1.4", "KERN 2B 8.4 (VWO)", "M4A re5.2-5.4"]
     verify_math: {status: planned, note: "The parser does not read √ yet. Needed for Pythagoras (T30) and quadratic equations (T14)."}
 
   - id: T05
     topic: "Verhoudingen en procenten"
     kerndoel: VO-10A
+    kerndoel_2007: [OB-22]
     hv: false
-    vwo_years: [1]
+    typical_years: [1]
     method_chapter: "H4 Rekenen in de praktijk"
-    evidence: ["KERN 1A 4.2-4.3"]
-    confirmed: false
+    evidence: ["KERN 1A 4.2-4.3", "M4A re3.1-3.5"]
     verify_math:
       status: partial
       check_types: [arithmetic, answer_equivalence, percentage_change]
@@ -97,19 +137,20 @@ topics:
   - id: T06
     topic: "Grootheden en eenheden omrekenen (lengte, oppervlakte, inhoud, gewicht, tijd)"
     kerndoel: VO-10A
+    kerndoel_2007: [OB-24]
     hv: false
-    vwo_years: [1]
+    typical_years: [1]
+    evidence: ["M4A me4.2, me4.5, me6.6"]
     method_chapter: "H4 Rekenen in de praktijk"
-    confirmed: false
     verify_math: {status: supported, check_types: [unit_conversion], tests: [VM080, VM082, VM087, VM088, VM093, VM094, VM095, VM096]}
 
   - id: T07
     topic: "Samengestelde grootheden (snelheid, dichtheid, prijs per eenheid)"
     kerndoel: VO-10A
+    kerndoel_2007: [OB-24]
     hv: false
-    vwo_years: [1, 2]
+    typical_years: [1, 2]
     method_chapter: "H4 Rekenen in de praktijk"
-    confirmed: false
     verify_math:
       status: partial
       check_types: [unit_conversion, formula_substitution]
@@ -119,10 +160,11 @@ topics:
   - id: T08
     topic: "Afmetingen, omtrek, oppervlakte en inhoud van figuren berekenen"
     kerndoel: VO-10A
+    kerndoel_2007: [OB-24, OB-26]
     hv: false
-    vwo_years: [1, 2]
+    typical_years: [1, 2]
+    evidence: ["M4A me4.1-4.5, me6.1-6.5, me7.3-7.4"]
     method_chapter: "H1 Figuren"
-    confirmed: false
     verify_math:
       status: partial
       check_types: [formula_substitution]
@@ -132,38 +174,38 @@ topics:
   - id: T09
     topic: "Algebraïsche uitdrukkingen herleiden (haakjes wegwerken, gelijksoortige termen)"
     kerndoel: VO-10A
+    kerndoel_2007: [OB-25]
     hv: true
-    vwo_years: [1, 2]
-    evidence: ["KERN 1B 8.1-8.4", "KERN 2B 8.3"]
-    confirmed: false
+    typical_years: [1, 2]
+    evidence: ["KERN 1B 8.1-8.4", "KERN 2B 8.3", "M4A gr3.1, gr3.5"]
     verify_math: {status: supported, check_types: [expression_equivalence], tests: [VM006, VM007, VM008, VM009, VM049, VM050, VM051]}
     note: "Includes ontbinden in factoren (KERN 1B 8.3) and, for vwo, merkwaardige producten (KERN 1B 8.4)."
 
   - id: T10
     topic: "Wetenschappelijke notatie, het decimale getallenstelsel"
     kerndoel: VO-10A
+    kerndoel_2007: [OB-22, OB-23]
     hv: true
-    vwo_years: [2]
-    evidence: ["KERN 2A 1.5"]
-    confirmed: false
+    typical_years: [2]
+    evidence: ["KERN 2A 1.5", "M4A re5.6"]
     verify_math: {status: planned, note: "3,2 · 10^5 may already parse; 10⁵ with superscript and the notation rule itself (1 ≤ a < 10) are not checked."}
 
   - id: T11
     topic: "Meetnauwkeurigheid, significante cijfers"
     kerndoel: VO-10A
+    kerndoel_2007: [OB-23]
     hv: true
-    vwo_years: [2, 3]
-    confirmed: false
+    typical_years: [2, 3]
     verify_math: {status: planned, note: "Rounding to decimals works; rounding to significant digits returns rounding_instruction_not_supported."}
 
   # --- Kerndoel 10B: vergelijkingen ---
   - id: T12
     topic: "Lineaire vergelijkingen oplossen (balansmethode), ook met letters"
     kerndoel: VO-10B
+    kerndoel_2007: [OB-25]
     hv: false
-    vwo_years: [1, 2]
-    evidence: ["KERN 1B 6.1-6.5", "KERN 2B 6.1"]
-    confirmed: false
+    typical_years: [1, 2]
+    evidence: ["KERN 1B 6.1-6.5", "KERN 2B 6.1", "M4A gr2.5, gr3.4, gr4.3"]
     verify_math:
       status: supported
       check_types: [equation_solution, step_validation, formula_rewrite]
@@ -172,18 +214,18 @@ topics:
   - id: T13
     topic: "Een vergelijking opstellen bij een situatie"
     kerndoel: VO-10B
+    kerndoel_2007: [OB-20, OB-25]
     hv: false
-    vwo_years: [1, 2, 3]
-    confirmed: false
+    typical_years: [1, 2, 3]
     verify_math: {status: out_of_scope, note: "Modelling a situation is the teacher's judgement; the tool only checks the equation once it is written."}
 
   - id: T14
     topic: "Kwadratische vergelijkingen (ontbinden in factoren; vwo: abc-formule, kwadraat afsplitsen)"
     kerndoel: VO-10B
+    kerndoel_2007: [OB-25]
     hv: true
-    vwo_years: [2]
-    evidence: ["KERN 2B 6.3-6.5 (6.5 VWO)", "KERN 2B 8.5 (VWO)"]
-    confirmed: false
+    typical_years: [2]
+    evidence: ["KERN 2B 6.3-6.5 (6.5 VWO)", "KERN 2B 8.5 (VWO)", "M4A gr5.3-5.4"]
     verify_math:
       status: partial
       check_types: [equation_solution, step_validation]
@@ -193,83 +235,85 @@ topics:
   - id: T15
     topic: "Machtsvergelijkingen"
     kerndoel: VO-10B
+    kerndoel_2007: [OB-25]
     hv: true
-    vwo_years: [3]
-    confirmed: false
+    typical_years: [3]
     verify_math: {status: partial, check_types: [equation_solution], note: "x³ = 27 can be checked; roots in the answer need T04."}
 
   - id: T16
     topic: "Stelsels van lineaire vergelijkingen"
     kerndoel: VO-10B
+    kerndoel_2007: [OB-25]
     hv: true
-    vwo_years: [3]
+    typical_years: [3]
     evidence: ["Not in KERN 1A-2B; voorkennis in G&R vwo wiskunde B deel 1, H4"]
-    confirmed: false
     verify_math: {status: planned, note: "Needs a new check type for two equations and an answer like x = 2, y = 3."}
 
   - id: T17
     topic: "Ongelijkheden (eerst lineair)"
     kerndoel: VO-10B
+    kerndoel_2007: [OB-25]
     hv: true
-    vwo_years: [2]
+    typical_years: [2]
     evidence: ["KERN 2B 6.2", "voorkennis in G&R vwo wiskunde B deel 1, H1"]
-    confirmed: false
     verify_math: {status: planned, note: "Needs <, >, ≤, ≥ in the parser and interval answers."}
 
   # --- Kerndoel 11: data en kansen ---
   - id: T18
     topic: "Gemiddelde, modus, mediaan en spreidingsbreedte"
     kerndoel: VO-11A
+    kerndoel_2007: [OB-27]
     hv: false
-    vwo_years: [1, 2]
-    evidence: ["KERN 1A 4.1, 4.4-4.5"]
-    confirmed: false
+    typical_years: [1, 2]
+    evidence: ["KERN 1A 4.1, 4.4-4.5", "M4A if2.2-2.3"]
     verify_math: {status: planned, note: "Needs a check type that takes a list of numbers."}
 
   - id: T19
     topic: "Kwartielen, interkwartielafstand, boxplot; datasets vergelijken"
     kerndoel: VO-11A
+    kerndoel_2007: [OB-27]
     hv: true
-    vwo_years: [2, 3]
-    confirmed: false
+    typical_years: [2, 3]
+    evidence: ["M4A if2.3-2.5"]
     verify_math: {status: planned, note: "Quartile definitions differ between methods and the GR; agree on one rule first."}
 
   - id: T20
     topic: "Grafieken en tabellen maken en lezen; correlatie en causaliteit"
     kerndoel: VO-11A
+    kerndoel_2007: [OB-25, OB-27]
     hv: false
-    vwo_years: [1, 2, 3]
+    typical_years: [1, 2, 3]
+    evidence: ["M4A gr1.1-1.6, if1.1-1.5"]
     method_chapter: "H3 Grafieken en formules"
-    confirmed: false
     verify_math: {status: out_of_scope, note: "Reading graphs and judging conclusions is interpretation."}
 
   - id: T21
     topic: "Kans als breuk, verhouding, percentage of decimaal getal; verwachtingswaarde"
     kerndoel: VO-11B
+    kerndoel_2007: []  # kans is not a separate kerndoel in the 2007 set
     hv: false
-    vwo_years: [2]
+    typical_years: [2]
     evidence: ["KERN 2A 4.3-4.4"]
-    confirmed: false
     verify_math: {status: partial, check_types: [answer_equivalence], tests: [VM099], note: "Converting between notations works; computing the probability itself is not checked."}
 
   - id: T22
     topic: "Systematisch tellen en kansregels (rooster-, boom- en wegendiagram, met en zonder terugleggen)"
     kerndoel: VO-11B
+    kerndoel_2007: []  # kans is not a separate kerndoel in the 2007 set
     hv: true
-    vwo_years: [1, 2]
+    typical_years: [1, 2]
     evidence: ["KERN 1B W2", "KERN 2A 4.1-4.2, 4.5"]
-    confirmed: false
     verify_math: {status: planned, note: "Needs n! and combinations in the parser."}
 
   # --- Kerndoel 12: patronen en verbanden ---
   - id: T23
     topic: "Formule bij een tabel of getallenrij; tabel, grafiek en formule omzetten"
     kerndoel: VO-12A
+    kerndoel_2007: [OB-25]
     hv: false
-    vwo_years: [1]
+    typical_years: [1]
     method_chapter: "H3 Grafieken en formules"
-    evidence: ["KERN 1A 3.1-3.5", "KERN 1B 6.1"]
-    confirmed: false
+    evidence: ["KERN 1A 3.1-3.5", "KERN 1B 6.1", "M4A gr2.2-2.4"]
     verify_math:
       status: partial
       check_types: [formula_substitution]
@@ -279,118 +323,120 @@ topics:
   - id: T24
     topic: "Woordformules"
     kerndoel: VO-12A
+    kerndoel_2007: [OB-25]
     hv: false
-    vwo_years: [1]
+    typical_years: [1]
     method_chapter: "H3 Grafieken en formules"
-    confirmed: false
     verify_math: {status: planned, tests: [VM061], note: "Multi-letter names like 'aantal' return word_variables_not_supported today."}
 
   - id: T25
     topic: "Standaardverbanden (lineair, recht en omgekeerd evenredig, kwadratisch, wortel, exponentieel)"
     kerndoel: VO-12A
+    kerndoel_2007: [OB-25]
     hv: true
-    vwo_years: [2, 3]
-    evidence: ["KERN 2A 3.1-3.5 (exponential not in 1A-2B)"]
-    confirmed: false
+    typical_years: [2, 3]
+    evidence: ["KERN 2A 3.1-3.5 (exponential not in 1A-2B)", "M4A gr4.1-4.5, gr5.1, gr6.1-6.5 (exponential already in leerjaar 1-2)"]
+    note: "Methods differ on when exponential growth starts: Math4All in leerjaar 1-2, KERN after leerjaar 2."
     verify_math: {status: planned, note: "Exponential formulas (groeifactor) need powers with a letter in the exponent."}
 
   - id: T26
     topic: "Functiebegrip en veranderingsgedrag"
     kerndoel: VO-12A
+    kerndoel_2007: [OB-25]
     hv: true
-    vwo_years: [3]
-    confirmed: false
+    typical_years: [3]
     verify_math: {status: out_of_scope, note: "Mostly reasoning about graphs; revisit with bovenbouw function notation."}
 
   # --- Kerndoel 13: meetkunde ---
   - id: T27
     topic: "Eigenschappen van figuren, 2D/3D, aanzichten, kijklijnen"
     kerndoel: VO-13A
+    kerndoel_2007: [OB-26]
     hv: false
-    vwo_years: [1, 2]
+    typical_years: [1, 2]
     method_chapter: "H1 Figuren"
-    evidence: ["KERN 1A 2.1-2.5", "KERN 2A 2.1-2.4"]
-    confirmed: false
+    evidence: ["KERN 1A 2.1-2.5", "KERN 2A 2.1-2.4", "M4A me1.1-1.5, me2.1-2.6"]
     verify_math: {status: out_of_scope, note: "Works with figures; a separate (geometry) approach would be needed."}
 
   - id: T28
     topic: "Transformaties en gelijkvormigheid: spiegelen (1), vergroten, gelijkvormigheid aantonen (2)"
     kerndoel: VO-13A
+    kerndoel_2007: [OB-26]
     hv: false
-    vwo_years: [1, 2]
-    evidence: ["KERN 1A 2.4-2.5", "KERN 2B 7.2-7.5 (7.5 VWO)"]
-    confirmed: false
+    typical_years: [1, 2]
+    evidence: ["KERN 1A 2.4-2.5", "KERN 2B 7.2-7.5 (7.5 VWO)", "M4A me5.1-5.3, me7.6"]
     verify_math: {status: partial, note: "Only the arithmetic: scale factor k, area × k², volume × k³. Showing similarity from a figure is out of scope."}
 
   - id: T29
     topic: "Hoeken en hoekeigenschappen (hoekensom, overstaande en F/Z-hoeken)"
     kerndoel: VO-13A
+    kerndoel_2007: [OB-26]
     hv: true
-    vwo_years: [1]
+    typical_years: [1]
     method_chapter: "H5 Lijnen en hoeken"
-    evidence: ["KERN 1A 2.2", "KERN 1B 7.3-7.4"]
-    confirmed: false
+    evidence: ["KERN 1A 2.2", "KERN 1B 7.3-7.4", "M4A me3.1-3.5"]
     verify_math: {status: planned, note: "Angle sums are plain arithmetic; the ° sign is not read yet. Finding which angles are equal needs the figure."}
 
   - id: T30
     topic: "Stelling van Pythagoras (vwo: ook de omgekeerde stelling)"
     kerndoel: VO-13A
+    kerndoel_2007: [OB-26]
     hv: false
-    vwo_years: [2]
-    evidence: ["KERN 2B 5.1-5.5 (5.5 VWO)"]
-    confirmed: false
+    typical_years: [2]
+    evidence: ["KERN 2B 5.1-5.5 (5.5 VWO)", "M4A me7.1-7.2"]
     verify_math: {status: planned, note: "Needs √ (T04). Then a² + b² = c² works with formula_substitution."}
 
   - id: T31
     topic: "Goniometrische verhoudingen in rechthoekige driehoeken (sin, cos, tan)"
     kerndoel: VO-13A
+    kerndoel_2007: [OB-26]
     hv: true
-    vwo_years: [3]
+    typical_years: [3]
     evidence: ["Not in KERN 1A-2B; voorkennis in G&R vwo wiskunde B deel 1, H3"]
-    confirmed: false
     verify_math: {status: planned, note: "Needs sin/cos/tan in degrees and the GR rounding conventions."}
 
   # --- Kerndoel 14-17: denk-werkwijzen, wiskundetaal, attitude, toepassing ---
   - id: T32
     topic: "Aantonen en bewijzen"
     kerndoel: VO-14C
+    kerndoel_2007: [OB-21]
     hv: true
-    vwo_years: [1, 2, 3]
-    confirmed: false
+    typical_years: [1, 2, 3]
     verify_math: {status: partial, check_types: [expression_equivalence, step_validation], note: "Algebraic 'toon aan' steps can be checked; geometric and verbal proofs cannot."}
 
   - id: T33
     topic: "Berekeningen leesbaar en in correcte notatie weergeven"
     kerndoel: VO-15A
+    kerndoel_2007: [OB-19]
     hv: false
-    vwo_years: [1, 2, 3]
-    confirmed: false
+    typical_years: [1, 2, 3]
     verify_math: {status: partial, check_types: [step_validation], note: "Each step is checked for correctness, not for neatness."}
 
   - id: T34
     topic: "Schatten en de nauwkeurigheid van een uitkomst beoordelen"
     kerndoel: VO-15B
+    kerndoel_2007: [OB-23]
     hv: false
-    vwo_years: [1, 2, 3]
-    confirmed: false
+    typical_years: [1, 2, 3]
+    evidence: ["M4A re1.4-1.5"]
     verify_math: {status: planned, note: "An estimate needs a tolerance rule ('ongeveer'), which the tool does not have yet."}
 
   - id: T35
     topic: "Probleemoplossen, modelleren, algoritmes; wiskundige attitude; wiskunde in de wereld"
     kerndoel: [VO-14A, VO-14B, VO-14D, VO-16A, VO-17A, VO-17B]
+    kerndoel_2007: [OB-19, OB-20, OB-21]
     hv: false
-    vwo_years: [1, 2, 3]
-    confirmed: false
+    typical_years: [1, 2, 3]
     verify_math: {status: out_of_scope, note: "Thinking, attitude and application: the teacher's domain."}
 
   # --- Added from KERN havo/vwo 1-2 ---
   - id: T36
     topic: "Breuken met variabelen, gebroken vormen (vwo)"
     kerndoel: VO-10A
+    kerndoel_2007: [OB-25]
     hv: true
-    vwo_years: [1, 2]
+    typical_years: [1, 2]
     evidence: ["KERN 1B 8.5 (VWO)", "KERN 2B 8.6 (VWO)"]
-    confirmed: false
     verify_math:
       status: partial
       check_types: [expression_equivalence]
@@ -400,18 +446,36 @@ topics:
   - id: T37
     topic: "Kwadraat afsplitsen (vwo)"
     kerndoel: VO-10A
+    kerndoel_2007: [OB-25]
     hv: true
-    vwo_years: [2]
-    evidence: ["KERN 2B 8.5 (VWO)"]
-    confirmed: false
+    typical_years: [2]
+    evidence: ["KERN 2B 8.5 (VWO)", "M4A gr5.3"]
     verify_math: {status: partial, check_types: [expression_equivalence, step_validation], note: "x² + 6x + 5 = (x + 3)² - 4 is an identity check; roots with √ need T04."}
 
   - id: T38
     topic: "Veelvouden, delers en priemgetallen"
     kerndoel: VO-10A
+    kerndoel_2007: [OB-22]
     hv: false
-    vwo_years: [2]
+    typical_years: [2]
     evidence: ["KERN 2A 1.1"]
-    confirmed: false
     verify_math: {status: planned, note: "Needs a check type for ggd, kgv and priemfactorontbinding."}
+
+  - id: T39
+    topic: "Assenstelsel en coördinaten"
+    kerndoel: VO-12A
+    kerndoel_2007: [OB-25]
+    hv: false
+    typical_years: [1]
+    evidence: ["KERN 1A 3.1", "M4A me1.6"]
+    verify_math: {status: planned, tests: [VM028], note: "(1,5) is rejected today as ambiguous (point or 1,5). Needs a check type where the input says it is a point."}
+
+  - id: T40
+    topic: "Exponentiële groei en verval: groeifactor, groeipercentage, exponentiële vergelijkingen"
+    kerndoel: VO-12A
+    kerndoel_2007: [OB-25]
+    hv: true
+    typical_years: [2, 3]
+    evidence: ["M4A gr6.1-6.5"]
+    verify_math: {status: partial, check_types: [arithmetic, percentage_change], tests: [VM104, VM106], note: "Growth percentages work (percentage_change); powers with a letter in the exponent (2^t = 8) are planned."}
 
