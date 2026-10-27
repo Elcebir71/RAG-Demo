@@ -10,6 +10,7 @@ import api
 import store
 import tools
 from llm_client import ModelTurn, ToolCall
+from contextlib import closing
 
 KEY = "test-key"
 EMAIL = {"to": "hakan@example.com", "subject": "Test", "body": "Hello"}
@@ -38,7 +39,7 @@ def create_pending():
 
 
 def outbox_count():
-    with sqlite3.connect(store.AGENT_DB) as db:
+    with sqlite3.connect(store.AGENT_DB) as db, db:
         return db.execute("SELECT COUNT(*) FROM outbox").fetchone()[0]
 
 
