@@ -122,9 +122,9 @@ def verify_math_tool(
     Percentages elsewhere: 25% = 25/100, "25% van 80" = 20. "80 + 15%" is
     ambiguous (calculator 92, algebra 80,15) and returns ambiguous_percentage:
     ask which one is meant. Rounding instructions ("Rond af op 2 decimalen",
-    "Rond af op 1 decimaal") work for arithmetic, answer_equivalence,
-    equation_solution, formula_substitution, unit_conversion and
-    percentage_change.
+    "Rond af op 1 decimaal", "Rond af op 3 significante cijfers") work for
+    every check type that compares a number. With significant figures the
+    result reports significant_figures instead of decimal_places.
 
     Letters: any single letter can be a variable (case-sensitive); 'ab' means
     a times b. e and i are variables too, but any power of e (e², e^x) and

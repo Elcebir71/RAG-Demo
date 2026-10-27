@@ -427,7 +427,7 @@ When the tool cannot check something reliably, it says so instead of guessing.
 
 **Dutch school notation:** decimal comma (`1,5`), mixed numbers (`1 3/4`), `:` for division,
 `×` / `·`, Unicode minus, `²`, percentages (`25%`, `25% van 80`), roots (`√12`, `2√3`, `√(x + 1)`;
-`is_simplified` says whether a root form is finished, and `√(x + 1)` adds the condition `x + 1 ≥ 0`). `:` and `/` are read from left to right (`2/3 : 4/5` = 1/30; write `2/3 : (4/5)`). `1.000` is rejected as ambiguous
+`is_simplified` says whether a root form is finished, and `√(x + 1)` adds the condition `x + 1 ≥ 0`). `:` and `/` are read from left to right (`2/3 : 4/5` = 1/30; write `2/3 : (4/5)`). Rounding only when the task asks for it, to decimals (`Rond af op 2 decimalen`) or significant figures (`Rond af op 3 significante cijfers`), half up. `1.000` is rejected as ambiguous
 (thousands separator or decimal), and so is `80 + 15%` (92 on a calculator, 80,15 in algebra).
 Formula rewrites retain nonzero conditions from variable denominators; equation-solving and
 step-validation still return unverifiable for such denominators when they cannot safely report a
@@ -444,7 +444,7 @@ verify_math("step_validation", steps=["-2(x - 3) = 4", "-2x - 6 = 4", "-2x = 10"
 # {'status': 'wrong', 'failed_step': 2, 'steps_consistent_after_error': [3, 4], ...}
 ```
 
-**Tests:** 217 acceptance cases in `tests/verify_math_cases.yaml` (correct and deliberately wrong
+**Tests:** 229 acceptance cases in `tests/verify_math_cases.yaml` (correct and deliberately wrong
 solutions, unsafe input, ambiguous notation, denominator conditions and unit conversions) plus unit tests:
 `python -m pytest -q`.
 

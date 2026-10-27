@@ -87,7 +87,8 @@ def test_negative_mixed_number_is_negative_whole_mixed_number():
 
 
 def test_unsupported_decimal_rounding_instruction_is_unverifiable():
-    result = verify_math("equation_solution", "3x=1", "x=0,3", task_instruction="Rond af op 1 significant cijfer.")
+    # Significant figures are supported since 27 Oct 2026; rounding to tens is not.
+    result = verify_math("equation_solution", "3x=1", "x=0,3", task_instruction="Rond af op tientallen.")
     assert result["status"] == "unverifiable"
     assert result["reason"] == "rounding_instruction_not_supported"
 

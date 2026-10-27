@@ -199,7 +199,7 @@ topics:
     kerndoel_2007: [OB-23]
     hv: true
     typical_years: [2, 3]
-    verify_math: {status: planned, note: "Rounding to decimals works; rounding to significant digits returns rounding_instruction_not_supported."}
+    verify_math: {status: supported, tests: [VM219, VM220, VM221, VM223, VM224], note: "Rounding to decimals and to significant figures (Rond af op 3 significante cijfers), half up, in every check type. Judging the precision of a measurement itself is not checked."}
 
   # --- Kerndoel 10B: vergelijkingen ---
   - id: T12

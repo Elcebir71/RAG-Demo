@@ -689,9 +689,26 @@ def _matches_solution_set(candidates: Sequence[sp.Expr], solutions: sp.Set, plac
     return True
 
 
+class _SigFigs(int):
+    """A rounding request in significant figures; a plain int means decimal places."""
+
+
+def _rounding_fields(places: int) -> dict[str, int]:
+    if isinstance(places, _SigFigs):
+        return {"significant_figures": int(places)}
+    return {"decimal_places": int(places)}
+
+
 def _parse_rounding_places(instruction: str | None) -> int | None:
+    """Decimal places as an int, significant figures as _SigFigs, or None."""
     if not instruction:
         return None
+    significant = re.search(r"\brond\s+af\s+op\s+(\d+)\s+significante?\s+cijfers?\b", instruction, re.IGNORECASE)
+    if significant:
+        figures = int(significant.group(1))
+        if figures < 1 or figures > 15:
+            raise _MathInputError("rounding_instruction_not_supported")
+        return _SigFigs(figures)
     match = re.search(r"\brond\s+af\s+op\s+(\d+)\s+decima(?:al|len)\b", instruction, re.IGNORECASE)
     if not match:
         # Do not silently ignore a rounding request whose precision cannot be
@@ -714,22 +731,36 @@ def _round_decimal(value: sp.Expr, places: int) -> Decimal:
                 decimal_value = Decimal(int(value.p)) / Decimal(int(value.q))
             else:
                 decimal_value = Decimal(str(sp.N(value, ctx.prec)))
+            if isinstance(places, _SigFigs):
+                return _round_significant(decimal_value, int(places))
             quantum = Decimal("1") if places == 0 else Decimal("1." + ("0" * places))
             return decimal_value.quantize(quantum, rounding=ROUND_HALF_UP)
     except (InvalidOperation, ValueError, TypeError, OverflowError) as exc:
         raise _MathInputError("unsupported_math_form") from exc
 
 
+def _round_significant(value: Decimal, figures: int) -> Decimal:
+    """Half up to significant figures: 2/3 -> 0.667, 12345 -> 12300, 9.996 -> 10.0."""
+    if value == 0:
+        return Decimal(0)
+    exponent = value.adjusted()
+    rounded = value.quantize(Decimal(1).scaleb(exponent - figures + 1), rounding=ROUND_HALF_UP)
+    if rounded != 0 and rounded.adjusted() != exponent:
+        # 9.996 -> 10.00 has one figure too many: round again at the new power of ten.
+        rounded = value.quantize(Decimal(1).scaleb(rounded.adjusted() - figures + 1), rounding=ROUND_HALF_UP)
+    return rounded
+
+
 def _rounded_rational(value: sp.Expr, places: int) -> sp.Expr:
     """Return an exact rational representation of the rounded decimal."""
     rounded = _round_decimal(value, places)
-    return sp.Rational(str(rounded))
+    return sp.Rational(format(rounded, "f"))
 
 
 def _rounded_display(value: sp.Expr, places: int) -> str:
-    """Format the rounded decimal in Dutch notation, preserving requested places."""
+    """Format the rounded decimal in Dutch notation, preserving requested places or figures."""
     rounded = _round_decimal(value, places)
-    text = f"{rounded:.{places}f}"
+    text = format(rounded, "f") if isinstance(places, _SigFigs) else f"{rounded:.{places}f}"
     return text.replace(".", ",")
 
 
@@ -768,7 +799,7 @@ def _rounded_compare(exact: sp.Expr, answer: sp.Expr, places: int | None,
     rounded = _rounded_rational(exact * scale, places)
     display = _rounded_display(exact * scale, places) + ("%" if percent else "")
     matched = sp.simplify(answer * scale - rounded) == 0
-    return matched, {"decimal_places": places, "rounded_answer": display}
+    return matched, {**_rounding_fields(places), "rounded_answer": display}
 
 
 _UNDEFINED_PHRASES = {"kan niet", "bestaat niet", "niet mogelijk", "ongedefinieerd", "niet gedefinieerd"}
@@ -950,7 +981,7 @@ def _verify_equation_solution(input_value: str, submitted_answer: str | None, ta
                            else "Het gegeven antwoord komt niet overeen met de volledige exacte oplossingsverzameling."),
     }
     if places is not None:
-        fields["decimal_places"] = places
+        fields.update(_rounding_fields(places))
         if rounded_answer is not None:
             fields["rounded_answer"] = rounded_answer
     fields["variable"] = unknown.name
@@ -1354,7 +1385,7 @@ def _verify_unit_conversion(input_value: str, submitted_answer: str | None,
     rounded_match = False
     if places is not None:
         rounded_match = sp.simplify(answer_number - _rounded_rational(exact_value, places)) == 0
-        fields["decimal_places"] = places
+        fields.update(_rounding_fields(places))
         fields["rounded_answer"] = _rounded_display(exact_value, places)
     correct = bool(exact_match or rounded_match)
     return _result(
@@ -1700,7 +1731,7 @@ def _verify_inequality_solution(input_value: str, submitted_answer: str | None,
     correct = _same_interval(exact, answer, places)
     fields = dict(base)
     if places is not None:
-        fields["decimal_places"] = places
+        fields.update(_rounding_fields(places))
     if answer_name != name:
         fields["variable_mismatch"] = True
         fields["value_correct"] = correct
@@ -1861,7 +1892,7 @@ def _verify_system_solution(input_value: str, submitted_answer: str | None,
     names = [symbol.name for symbol in unknowns]
     fields = dict(base)
     if places is not None:
-        fields["decimal_places"] = places
+        fields.update(_rounding_fields(places))
     if kind != "unique":
         fields["explanation_nl"] = f"Het antwoord geeft één oplossing, maar {solution_text}."
         return _result("wrong", check_type, input_value, **fields)
