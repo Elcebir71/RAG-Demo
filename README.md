@@ -415,6 +415,7 @@ so a teacher sees the AI answer and the verification result separately.
 | `step_validation` | `3x - 5 = 7 → 3x = 12 → x = 3` | first invalid step + steps consistent after the error |
 | `formula_substitution` | `v = s / t`, `s=120`, `t=2` → `v = 60`; or `v=60`, `s=120` → `t = 2` | checks a student's result, also when the unknown is in a denominator; a zero denominator is rejected |
 | `formula_rewrite` | `v = s / t` → `s = v · t` | checks the rewrite and returns conditions such as `t ≠ 0` |
+| `inequality_solution` | `5 - 2x > 1`, answer `x < 2`; `-4 < 2x + 2 ≤ 8`, answer `-3 < x ≤ 3` | linear inequalities, also double ones; flags a sign that was not flipped (`direction_reversed`) and `<`/`≤` mixed up (`wrong_bound_type`) |
 | `percentage_change` | `80 → 100` = `25%`; `100 → 80` = `-20%` or `20% afname` | percentage increase/decrease; flags dividing by the new value |
 | `unit_conversion` | `72 km/u` → `20 m/s`, `1 dm³` → `1 L` | exact conversions for metric length, mass, area, volume (litres included, `ml` or `mL`), time (`u` or `h`) and speed (`km/u`); rounding only when the task asks for it |
 
@@ -440,7 +441,7 @@ verify_math("step_validation", steps=["-2(x - 3) = 4", "-2x - 6 = 4", "-2x = 10"
 # {'status': 'wrong', 'failed_step': 2, 'steps_consistent_after_error': [3, 4], ...}
 ```
 
-**Tests:** 137 acceptance cases in `tests/verify_math_cases.yaml` (correct and deliberately wrong
+**Tests:** 153 acceptance cases in `tests/verify_math_cases.yaml` (correct and deliberately wrong
 solutions, unsafe input, ambiguous notation, denominator conditions and unit conversions) plus unit tests:
 `python -m pytest -q`.
 

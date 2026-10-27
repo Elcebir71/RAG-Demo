@@ -27,6 +27,7 @@ CheckType = Literal[
     "formula_rewrite",
     "unit_conversion",
     "percentage_change",
+    "inequality_solution",
 ]
 
 
@@ -79,6 +80,15 @@ def verify_math_tool(
         or "20% afname". A decrease written as plain "20%" returns 'wrong'
         with direction_missing; misconception 'divided_by_new_value' means the
         student divided by the new instead of the old value.
+      - inequality_solution: input is a linear inequality in one letter,
+        also a double one, e.g. "5 - 2x > 1" or "-4 < 2x + 2 ≤ 8" (<= and >=
+        work too); submitted_answer the student's solution, e.g. "x < 2",
+        "3 > x", "-3 < x ≤ 3", "geen oplossing" or "alle reële getallen".
+        solution_set gives the correct set as text. misconception
+        'direction_reversed': right bound, sign the wrong way (often a
+        negative coefficient without flipping); 'wrong_bound_type': < and ≤
+        mixed up. Interval notation (⟨←, 3⟩) returns
+        interval_notation_not_supported: ask for the x < 3 form.
 
     Percentages elsewhere: 25% = 25/100, "25% van 80" = 20. "80 + 15%" is
     ambiguous (calculator 92, algebra 80,15) and returns ambiguous_percentage:
@@ -92,7 +102,7 @@ def verify_math_tool(
     i² return ambiguous_constant: ask the teacher whether e is Euler's number
     or i the imaginary unit. π is always the constant pi. Word formulas
     ('aantal') are not supported. If an equation has more than one letter,
-    pass the letter to solve for in 'variable'. If the result has
+    pass the letter to solve for in 'variable' (also for inequalities). If the result has
     variable_mismatch with value_correct true, tell the teacher the value is
     right but the answer is written under the wrong letter (status is still
     'wrong').

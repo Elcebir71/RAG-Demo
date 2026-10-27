@@ -258,7 +258,7 @@ topics:
     hv: true
     typical_years: [2]
     evidence: ["KERN 2B 6.2", "voorkennis in G&R vwo wiskunde B deel 1, H1"]
-    verify_math: {status: planned, note: "Needs <, >, ≤, ≥ in the parser and interval answers."}
+    verify_math: {status: supported, check_types: [inequality_solution], tests: [VM139, VM140, VM145, VM146, VM147, VM148, VM152, VM153], note: "Linear and double inequalities; answers like x < 3, 3 > x, -3 < x ≤ 3. Interval notation (⟨←, 3⟩) returns unverifiable for now."}
 
   # --- Kerndoel 11: data en kansen ---
   - id: T18

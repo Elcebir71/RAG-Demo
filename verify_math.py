@@ -12,7 +12,8 @@ Scope:
 - letter formulas: substituting values and rewriting for another letter,
   with nonzero conditions from letters in a denominator;
 - metric unit conversions from a fixed unit table (including Dutch km/u);
-- percentages: 25%, '25% van 80', and percentage change (80 -> 100 = 25%).
+- percentages: 25%, '25% van 80', and percentage change (80 -> 100 = 25%);
+- linear inequalities in one letter, also double ones (-4 < 2x + 2 ≤ 8).
 
 This is a verification aid, not a proof of pedagogical correctness or of the
 semantic modelling of a word problem. See README.md for the limitations.
@@ -116,6 +117,8 @@ _REASON_NL = {
     "ambiguous_root_notation": "Bij een wortel met een macht erachter (√2²) is niet duidelijk wat bedoeld wordt; gebruik haakjes: √(2²) of (√2)².",
     "ambiguous_percentage": "Een getal plus of min een percentage (zoals 80 + 15%) is dubbelzinnig: 92 op een rekenmachine, 80,15 in de algebra. Schrijf 80 · 1,15 of 80 + 15% van 80.",
     "invalid_percentage_change": "Geef de oude en de nieuwe waarde als 'oud -> nieuw', bijvoorbeeld 80 -> 100, en het antwoord als percentage.",
+    "invalid_inequality": "Voer één ongelijkheid in met <, >, ≤ of ≥, of een dubbele ongelijkheid zoals -4 < 2x + 2 ≤ 8.",
+    "interval_notation_not_supported": "Intervalnotatie (zoals ⟨←, 3⟩ of [2, 5]) wordt nog niet gelezen; schrijf het antwoord als x < 3 of 2 ≤ x ≤ 5.",
 }
 
 _PREFLIGHT_REASONS = {
@@ -1393,6 +1396,290 @@ def _matches_value(target: sp.Expr, value: sp.Expr, places: int | None, directio
     return False
 
 
+# --- Inequalities -----------------------------------------------------------
+# A solution set of a linear inequality is one interval. It is kept as a small
+# tuple (lo, lo_closed, hi, hi_closed); None for lo or hi means no bound on
+# that side. _EMPTY is the empty set. SymPy's own inequality solver is not
+# used: a linear inequality only needs the sign of one coefficient, and this
+# keeps every step easy to check by hand.
+_EMPTY = "empty"
+_FLIP = {"<": ">", ">": "<", "≤": "≥", "≥": "≤"}
+_INEQ_SPLIT_RE = re.compile(r"(≤|≥|<|>)")
+_INTERVAL_MARKERS = set("⟨⟩[]∈←→∞")
+
+
+def _normalize_inequality_signs(text: str) -> str:
+    return text.replace("<=", "≤").replace(">=", "≥").replace("=<", "≤").replace("=>", "≥")
+
+
+def _split_inequality(text: str) -> tuple[list[str], list[str]]:
+    """'-4 < 2x + 2 ≤ 8' -> (['-4', '2x + 2', '8'], ['<', '≤']); one or two signs only."""
+    pieces = _INEQ_SPLIT_RE.split(_normalize_inequality_signs(text))
+    parts = [piece.strip() for piece in pieces[0::2]]
+    ops = pieces[1::2]
+    if not ops or len(ops) > 2 or any(not part for part in parts) or any("=" in part for part in parts):
+        raise _MathInputError("invalid_inequality")
+    if len(ops) == 2:
+        lower_type = {"<", "≤"}
+        if (ops[0] in lower_type) != (ops[1] in lower_type):
+            # 1 < x > 3 is not a chain a reader can trust.
+            raise _MathInputError("invalid_inequality")
+    return parts, ops
+
+
+def _sign_of(value: sp.Expr) -> int:
+    value = sp.simplify(value)
+    if value.is_zero:
+        return 0
+    if value.is_positive:
+        return 1
+    if value.is_negative:
+        return -1
+    raise _MathInputError("unsupported_solution_set")
+
+
+def _holds(op: str, value: sp.Expr) -> bool:
+    """True when 'value op 0' holds for a number."""
+    sign = _sign_of(value)
+    return {"<": sign < 0, "≤": sign <= 0, ">": sign > 0, "≥": sign >= 0}[op]
+
+
+def _ray(op: str, bound: sp.Expr) -> tuple:
+    """The set 'x op bound'."""
+    if op == "<":
+        return (None, False, bound, False)
+    if op == "≤":
+        return (None, False, bound, True)
+    if op == ">":
+        return (bound, False, None, False)
+    return (bound, True, None, False)
+
+
+def _solve_linear_inequality(left: sp.Expr, right: sp.Expr, op: str, unknown: sp.Symbol):
+    difference = sp.expand(left - right)
+    try:
+        poly = sp.Poly(difference, unknown)
+    except sp.PolynomialError as exc:
+        raise _MathInputError("unsupported_solution_set") from exc
+    if poly.degree() > 1:
+        # Quadratic inequalities need a sign chart; not built yet.
+        raise _MathInputError("unsupported_solution_set")
+    coefficient = sp.simplify(poly.nth(1))
+    constant = sp.simplify(poly.nth(0))
+    if coefficient.free_symbols or constant.free_symbols:
+        raise _MathInputError("unsupported_solution_set")
+    sign = _sign_of(coefficient)
+    if sign == 0:
+        return (None, False, None, False) if _holds(op, constant) else _EMPTY
+    bound = sp.simplify(-constant / coefficient)
+    # Dividing by a negative coefficient flips the sign.
+    return _ray(op if sign > 0 else _FLIP[op], bound)
+
+
+def _intersect(first, second):
+    if first == _EMPTY or second == _EMPTY:
+        return _EMPTY
+    lo, lo_closed = first[0], first[1]
+    if second[0] is not None:
+        if lo is None:
+            lo, lo_closed = second[0], second[1]
+        else:
+            sign = _sign_of(second[0] - lo)
+            if sign > 0:
+                lo, lo_closed = second[0], second[1]
+            elif sign == 0:
+                lo_closed = lo_closed and second[1]
+    hi, hi_closed = first[2], first[3]
+    if second[2] is not None:
+        if hi is None:
+            hi, hi_closed = second[2], second[3]
+        else:
+            sign = _sign_of(second[2] - hi)
+            if sign < 0:
+                hi, hi_closed = second[2], second[3]
+            elif sign == 0:
+                hi_closed = hi_closed and second[3]
+    if lo is not None and hi is not None:
+        width = _sign_of(hi - lo)
+        if width < 0 or (width == 0 and not (lo_closed and hi_closed)):
+            return _EMPTY
+    return (lo, lo_closed, hi, hi_closed)
+
+
+def _interval_text(interval, name: str) -> str:
+    if interval == _EMPTY:
+        return "empty"
+    lo, lo_closed, hi, hi_closed = interval
+    if lo is None and hi is None:
+        return "all_reals"
+    if lo is None:
+        return f"{name} {'≤' if hi_closed else '<'} {_serialize_exact(hi)}"
+    if hi is None:
+        return f"{name} {'≥' if lo_closed else '>'} {_serialize_exact(lo)}"
+    if _sign_of(hi - lo) == 0:
+        return f"{name} = {_serialize_exact(lo)}"
+    return (f"{_serialize_exact(lo)} {'≤' if lo_closed else '<'} {name} "
+            f"{'≤' if hi_closed else '<'} {_serialize_exact(hi)}")
+
+
+def _interval_nl(interval, name: str) -> str:
+    text = _interval_text(interval, name)
+    if text == "empty":
+        return "er is geen oplossing"
+    if text == "all_reals":
+        return "alle reële getallen voldoen"
+    return text
+
+
+def _solve_inequality_input(input_value: str, variable: str | None):
+    if not isinstance(input_value, str) or not input_value.strip():
+        raise _MathInputError("invalid_inequality")
+    if len(input_value) > MAX_INPUT_LENGTH:
+        raise _MathInputError("input_too_long")
+    parts, ops = _split_inequality(input_value)
+    expressions: list[sp.Expr] = []
+    for part in parts:
+        ok, reason = _preflight(part)
+        if not ok:
+            raise _MathInputError(reason or "disallowed_characters_or_syntax")
+        denominators: list[sp.Expr] = []
+        root_conditions: list[sp.Expr] = []
+        expressions.append(_parse_expr(part, denominators, root_conditions))
+        if denominators:
+            # A letter in a denominator can change sign: not a linear inequality.
+            raise _MathInputError("variable_denominator_unsupported")
+        if root_conditions:
+            raise _MathInputError("unsupported_solution_set")
+    symbols: set = set()
+    for expression in expressions:
+        symbols |= expression.free_symbols
+    unknown = _pick_unknown(symbols, variable)
+    if symbols - {unknown}:
+        # Parameters (for which p ...) are planned, not supported.
+        raise _MathInputError("unsupported_solution_set")
+    interval = _solve_linear_inequality(expressions[0], expressions[1], ops[0], unknown)
+    if len(ops) == 2:
+        interval = _intersect(interval, _solve_linear_inequality(expressions[1], expressions[2], ops[1], unknown))
+    return unknown, interval
+
+
+def _parse_inequality_answer(text: str) -> tuple[str, tuple]:
+    """Read 'x < 3', '3 > x', 'x >= 2' or '-3 < x ≤ 3'. Returns the letter and the interval."""
+    parts, ops = _split_inequality(text)
+    letters = [bool(_SINGLE_LETTER_RE.fullmatch(part)) for part in parts]
+    if len(ops) == 1:
+        if letters[0] and not letters[1]:
+            return parts[0], _ray(ops[0], _numeric_value(parts[1]))
+        if letters[1] and not letters[0]:
+            return parts[1], _ray(_FLIP[ops[0]], _numeric_value(parts[0]))
+        raise _MathInputError("invalid_answer")
+    if not letters[1] or letters[0] or letters[2]:
+        raise _MathInputError("invalid_answer")
+    first, last = _numeric_value(parts[0]), _numeric_value(parts[2])
+    if ops[0] in ("<", "≤"):
+        # a < x ≤ b
+        return parts[1], (first, ops[0] == "≤", last, ops[1] == "≤")
+    # a > x ≥ b is the same as b ≤ x < a
+    return parts[1], (last, ops[1] == "≥", first, ops[0] == "≥")
+
+
+def _same_bound(exact: sp.Expr | None, answer: sp.Expr | None, places: int | None) -> bool:
+    if exact is None or answer is None:
+        return exact is None and answer is None
+    return _rounded_compare(exact, answer, places, "")[0]
+
+
+def _same_interval(exact, answer, places: int | None) -> bool:
+    if exact == _EMPTY or answer == _EMPTY:
+        return exact == answer
+    return (_same_bound(exact[0], answer[0], places) and _same_bound(exact[2], answer[2], places)
+            and (exact[0] is None or exact[1] == answer[1])
+            and (exact[2] is None or exact[3] == answer[3]))
+
+
+def _inequality_misconception(exact, answer, places: int | None) -> str | None:
+    if exact == _EMPTY or answer == _EMPTY:
+        return None
+    one_sided_exact = (exact[0] is None) != (exact[2] is None)
+    one_sided_answer = (answer[0] is None) != (answer[2] is None)
+    if one_sided_exact and one_sided_answer and (exact[0] is None) != (answer[0] is None):
+        exact_bound = exact[0] if exact[0] is not None else exact[2]
+        answer_bound = answer[0] if answer[0] is not None else answer[2]
+        if _same_bound(exact_bound, answer_bound, places):
+            return "direction_reversed"
+    if (_same_bound(exact[0], answer[0], places) and _same_bound(exact[2], answer[2], places)
+            and not _same_interval(exact, answer, places)):
+        return "wrong_bound_type"
+    return None
+
+
+_NO_SOLUTION_PHRASES = {"geen oplossing", "geen oplossingen"}
+_ALL_REALS_PHRASES = {"alle getallen", "alle reele getallen", "alle reele waarden", "alle x"}
+
+
+def _verify_inequality_solution(input_value: str, submitted_answer: str | None,
+                                task_instruction: str | None = None,
+                                variable: str | None = None) -> dict[str, Any]:
+    check_type = "inequality_solution"
+    try:
+        unknown, exact = _solve_inequality_input(input_value, variable)
+        places = _parse_rounding_places(task_instruction)
+    except _MathInputError as exc:
+        return _unverifiable(check_type, input_value, exc,
+                             parser_invoked=exc.reason not in _PREFLIGHT_REASONS | {"invalid_inequality"})
+    name = unknown.name
+    solution_text = _interval_text(exact, name)
+    base = {"solution_set": solution_text, "variable": name, "parser_invoked": True}
+
+    if submitted_answer is None or not str(submitted_answer).strip():
+        error = _MathInputError("no_claim_to_check")
+        return _result("unverifiable", check_type, input_value, reason=error.reason,
+                       explanation_nl=f"{error.message_nl} De oplossing is: {_interval_nl(exact, name)}.", **base)
+    base["submitted_answer"] = submitted_answer
+    if any(char in _INTERVAL_MARKERS for char in submitted_answer):
+        error = _MathInputError("interval_notation_not_supported")
+        return _result("unverifiable", check_type, input_value, reason=error.reason,
+                       explanation_nl=error.message_nl, **base)
+
+    phrase = " ".join(submitted_answer.strip().casefold().split()).replace("ë", "e")
+    if phrase in _NO_SOLUTION_PHRASES or phrase in _ALL_REALS_PHRASES:
+        answer = _EMPTY if phrase in _NO_SOLUTION_PHRASES else (None, False, None, False)
+        answer_name = name
+    else:
+        try:
+            answer_name, answer = _parse_inequality_answer(submitted_answer)
+        except _MathInputError as exc:
+            return _result("unverifiable", check_type, input_value, reason=exc.reason,
+                           explanation_nl=exc.message_nl, **base)
+
+    correct = _same_interval(exact, answer, places)
+    fields = dict(base)
+    if places is not None:
+        fields["decimal_places"] = places
+    if answer_name != name:
+        fields["variable_mismatch"] = True
+        fields["value_correct"] = correct
+        fields["explanation_nl"] = (f"De ongelijkheid wordt opgelost naar {name}, maar het antwoord gebruikt "
+                                    f"{answer_name}. De oplossing is: {_interval_nl(exact, name)}.")
+        return _result("wrong", check_type, input_value, **fields)
+    if correct:
+        fields["explanation_nl"] = f"Het antwoord klopt: {_interval_nl(exact, name)}."
+        return _result("verified", check_type, input_value, **fields)
+
+    misconception = _inequality_misconception(exact, answer, places)
+    if misconception == "direction_reversed":
+        explanation = ("De grens klopt, maar het ongelijkheidsteken wijst de verkeerde kant op. "
+                       "Let op: bij delen of vermenigvuldigen met een negatief getal klapt het teken om.")
+    elif misconception == "wrong_bound_type":
+        explanation = "De grenzen kloppen, maar < en ≤ (of > en ≥) zijn verwisseld."
+    else:
+        explanation = "Het antwoord komt niet overeen met de oplossing."
+    fields["explanation_nl"] = f"{explanation} De oplossing is: {_interval_nl(exact, name)}."
+    if misconception is not None:
+        fields["misconception"] = misconception
+    return _result("wrong", check_type, input_value, **fields)
+
+
 def verify_math(
     check_type: str,
     input: str = "",
@@ -1407,7 +1694,7 @@ def verify_math(
     Args:
         check_type: one of arithmetic, answer_equivalence, expression_equivalence,
             equation_solution, step_validation, formula_substitution, formula_rewrite,
-            unit_conversion, percentage_change.
+            unit_conversion, percentage_change, inequality_solution.
         input: expression, equation or quantity; not used to infer a word problem's meaning.
         submitted_answer: the student's answer to compare, exactly as written.
         steps: explicit equation steps for step_validation. When omitted, an
@@ -1415,7 +1702,7 @@ def verify_math(
         task_instruction: optional Dutch rounding instruction, e.g.
             ``Rond af op 2 decimalen.`` or ``Rond af op 1 decimaal.``
         variable: the letter to solve for when an equation contains more than
-            one letter (equation_solution, step_validation).
+            one letter (equation_solution, step_validation, inequality_solution).
         substitutions: values to fill in for formula_substitution, e.g.
             ``{"p": "3"}``.
 
@@ -1423,7 +1710,7 @@ def verify_math(
     """
     allowed_types = {"arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
                      "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
-                     "percentage_change"}
+                     "percentage_change", "inequality_solution"}
     if check_type not in allowed_types:
         return _unverifiable(str(check_type), input, _MathInputError("unsupported_math_form"))
     if not isinstance(input, str):
@@ -1445,6 +1732,8 @@ def verify_math(
         return _verify_formula_rewrite(input, submitted_answer)
     if check_type == "unit_conversion":
         return _verify_unit_conversion(input, submitted_answer, task_instruction)
+    if check_type == "inequality_solution":
+        return _verify_inequality_solution(input, submitted_answer, task_instruction, variable)
     return _verify_steps(input, steps, variable)
 
 
@@ -1456,7 +1745,7 @@ if __name__ == "__main__":
     cli = argparse.ArgumentParser(description="Conservative Dutch maths verifier")
     cli.add_argument("check_type", choices=["arithmetic", "answer_equivalence", "expression_equivalence", "equation_solution",
                                             "step_validation", "formula_substitution", "formula_rewrite", "unit_conversion",
-                                            "percentage_change"])
+                                            "percentage_change", "inequality_solution"])
     cli.add_argument("input", help="Expression, equation, quantity, or arrow-delimited steps")
     cli.add_argument("--answer")
     cli.add_argument("--instruction")

@@ -22,7 +22,7 @@ paragraphs:
   - id: B1.0
     title: "Voorkennis: lineaire vergelijkingen en ongelijkheden"
     typical_year: 4
-    verify_math: {status: partial, note: "Linear equations supported (T12); inequalities planned (T17)."}
+    verify_math: {status: supported, check_types: [equation_solution, inequality_solution], note: "Linear equations (T12) and linear inequalities (T17), also double inequalities. Interval notation is not read yet."}
   - id: B1.1
     title: "Lineaire functies"
     verify_math: {status: partial, check_types: [formula_substitution, formula_rewrite], note: "Values and rewriting work; f(x) notation and 'line through two points' are planned."}
