@@ -398,88 +398,19 @@ documents you are allowed to publish.
 - [x] Retrieval quality check (`evals/`)
 - [x] Answer quality check: citation accuracy and "I don't know" on off-topic questions
 
-## Maths verification: `verify_math` + local MCP server
+## Maths verification (separate, private repository)
 
-A first building block for a maths-teacher assistant (Dutch secondary school, starting with VWO 1).
-An AI model can produce a worked solution; `verify_math` checks it **independently** with SymPy,
-so a teacher sees the AI answer and the verification result separately.
+The maths-teacher assistant needs more than retrieval: an AI model can write a worked solution that
+looks right and is wrong. That part, `verify_math`, now lives in its own private repository. In short:
 
-**What it checks**
-
-| `check_type` | Example | Result |
-| --- | --- | --- |
-| `arithmetic` | `-3/4 + 2/3 × (-1,5)` = `-7/4` | exact fractions, no rounding |
-| `answer_equivalence` | `-7/4` vs `-1,75` | same value, different notation |
-| `expression_equivalence` | `-2(x - 3) = -2x + 6` | identity in x |
-| `equation_solution` | `3x - 5 = 7`, answer `x = 4`; `x² + 3x - 1 = 0`, answer `x = (-3 ± √13)/2` | full real solution set, incl. `geen oplossing` / `alle getallen`; flags abc-formule slips (`sign_of_b`, `divided_by_2_not_2a`) |
-| `step_validation` | `3x - 5 = 7 → 3x = 12 → x = 3` | first invalid step + steps consistent after the error |
-| `formula_substitution` | `v = s / t`, `s=120`, `t=2` → `v = 60`; or `v=60`, `s=120` → `t = 2` | checks a student's result, also when the unknown is in a denominator; a zero denominator is rejected |
-| `formula_rewrite` | `v = s / t` → `s = v · t` | checks the rewrite and returns conditions such as `t ≠ 0` |
-| `inequality_solution` | `5 - 2x > 1`, answer `x < 2`; `-4 < 2x + 2 ≤ 8`, answer `-3 < x ≤ 3` | linear inequalities, also double ones; flags a sign that was not flipped (`direction_reversed`) and `<`/`≤` mixed up (`wrong_bound_type`) |
-| `system_solution` | `2x + y = 7; x - y = 2`, answer `x = 3, y = 1` | two linear equations in two letters, incl. `geen oplossing` / `oneindig veel oplossingen`; flags swapped values and answers that fit only one equation |
-| `function_notation` | `f(x) = 2x² - 3x + 1; f(-2)`, answer `15`; `f(x) = 2x + 1; g(x) = -x + 7; f(x) = g(x)`, answer `x = 2` | function values and equations with f(x) notation; flags `-2²` instead of `(-2)²` |
-| `statistics` | `gemiddelde: 4, 7, 7, 9, 3` = `6`; `mediaan: 3, 8, 5, 10` = `6,5`; `modus: 2, 5, 5, 8, 8, 1` = `5 en 8` | mean, median, mode and range; flags an unsorted median and a single middle value |
-| `scientific_notation` | `45000` → `4,5 · 10⁴`; `(4 · 10³) × (5 · 10²)` → `2 · 10⁶` | value and form a · 10^n (1 ≤ \|a\| < 10); flags `45 · 10³`, `4,5E4` and a wrong exponent |
-| `number_theory` | `ggd: 12, 18` = `6`; `priemfactoren: 360` = `2³ · 3² · 5`; `priemgetal: 91` = `nee` | ggd, kgv, prime factors, divisors, primes; flags ggd/kgv mixed up and a product instead of the kgv |
-| `counting` | `met volgorde, zonder terugleggen: 10, 3` = `720` (or `10 · 9 · 8`) | counting with or without order and replacement; flags the wrong model; `n!` and `10 boven 3` work everywhere |
-| geometry (`angle_sum`, `shape_formula`, `scale_factor`, `trig_ratio`, `sine_rule`, `cosine_rule`, `point_distance`, `midpoint`, `pythagoras`) | `driehoek: 35°, 72°` = `73°`; `oppervlakte cirkel`, `r = 3` → `9π`; `A(1, 2), B(4, 6)` → `5` | in `geometry/`, forwarded by `verify_math`; the figure is never read, the caller gives shape, relation and sizes |
-| `percentage_change` | `80 → 100` = `25%`; `100 → 80` = `-20%` or `20% afname` | percentage increase/decrease; flags dividing by the new value |
-| `unit_conversion` | `72 km/u` → `20 m/s`, `1 dm³` → `1 L` | exact conversions for metric length, mass, area, volume (litres included, `ml` or `mL`), time (`u` or `h`) and speed (`km/u`); rounding only when the task asks for it |
-
-Every result has one of three statuses: `verified`, `wrong` or `unverifiable`.
-When the tool cannot check something reliably, it says so instead of guessing.
-
-**Dutch school notation:** decimal comma (`1,5`), mixed numbers (`1 3/4`), `:` for division,
-`×` / `·`, Unicode minus, superscript exponents (`²`, `10⁴`, `10⁻³`), percentages (`25%`, `25% van 80`), roots (`√12`, `2√3`, `√(x + 1)`;
-`is_simplified` says whether a root form is finished, and `√(x + 1)` adds the condition `x + 1 ≥ 0`). `:` and `/` are read from left to right (`2/3 : 4/5` = 1/30; write `2/3 : (4/5)`). Rounding only when the task asks for it, to decimals (`Rond af op 2 decimalen`) or significant figures (`Rond af op 3 significante cijfers`), half up. `1.000` is rejected as ambiguous
-(thousands separator or decimal), and so is `80 + 15%` (92 on a calculator, 80,15 in algebra).
-Formula rewrites retain nonzero conditions from variable denominators; equation-solving and
-step-validation still return unverifiable for such denominators when they cannot safely report a
-complete restricted solution set. Unit conversions use explicit quantities and a fixed unit table;
-the tool does not infer equations from word problems.
-
-**Safety:** no `eval` and no `sympy.parse_expr`. A small recursive-descent parser builds SymPy
-objects directly; an allowlist and a length limit reject input before parsing.
-
-```python
-from verify_math import verify_math
-
-verify_math("step_validation", steps=["-2(x - 3) = 4", "-2x - 6 = 4", "-2x = 10", "x = -5"])
-# {'status': 'wrong', 'failed_step': 2, 'steps_consistent_after_error': [3, 4], ...}
-```
-
-**Tests:** 299 acceptance cases for verify_math and 133 for geometry (`tests/geometry/`) in `tests/verify_math_cases.yaml` (correct and deliberately wrong
-solutions, unsafe input, ambiguous notation, denominator conditions and unit conversions) plus unit tests:
-`python -m pytest -q`.
-
-### Use it from Claude Desktop (local MCP server)
-
-`mcp_server.py` exposes `verify_math` as an MCP tool over stdio. It runs only on your own machine.
-
-```bash
-pip install "mcp>=1.2,<2"
-```
-
-Add to `claude_desktop_config.json` (Settings → Developer → Edit Config), then restart Claude Desktop:
-
-```json
-{
-  "mcpServers": {
-    "wiskunde-verify": {
-      "command": "C:\\path\\to\\.venv\\Scripts\\python.exe",
-      "args": ["C:\\path\\to\\RAG-Demo\\mcp_server.py"]
-    }
-  }
-}
-```
-
-Ask Claude for example: *"Gebruik de tool verify_math: klopt deze uitwerking?
-−2(x − 3) = 4 → −2x − 6 = 4 → −2x = 10 → x = −5"*. Claude calls the tool and reports that
-step 2 contains a sign error and that the correct solution is x = 1.
-
-**Limits:** one-letter variables are supported; multi-letter word formula names, geometry figures,
-and automatic word-problem modelling are out of scope. `verified` covers only the mathematical
-property that was checked. A teacher still reviews generated material.
+- It checks a maths claim **independently** with SymPy: a worked solution, an answer key or a
+  student's answer, in Dutch school notation (decimal comma, `:` for division, `√`, superscripts).
+- It answers `verified`, `wrong` or `unverifiable`, and names common misconceptions (for example a
+  sign error in a step, exponents added instead of multiplied, or the median included in the halves
+  when finding quartiles). When it cannot check something reliably, it says so instead of guessing.
+- It covers the vwo/havo onderbouw kerndoelen, including geometry, with about 900 acceptance tests.
+- It is exposed to AI assistants as a local MCP server, so a chat model calls it before presenting
+  an answer to a teacher.
 
 ## Author
 
