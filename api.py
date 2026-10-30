@@ -6,7 +6,7 @@ import secrets
 from typing import Any, Literal
 
 import chromadb
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
@@ -17,11 +17,16 @@ import store
 from ask import SYSTEM_PROMPT, build_prompt, citations, retrieve, snippet
 from config import ADMIN_API_KEY, BACKEND, COLLECTION, DB_DIR
 from llm_client import LLMError, chat
+from ratelimit import RateLimiter, RateLimitExceeded, client_ip
 
 log = logging.getLogger("rag")
 app = FastAPI(title="RAG Document Assistant")
 
 NO_MATERIAL = "No material was found for this level."
+
+# Every /ask call can reach the paid model, so the public endpoint is limited per
+# client and per day (ASK_RATE_PER_MINUTE, ASK_DAILY_LIMIT; defaults 10 and 200).
+ask_limiter = RateLimiter.from_env()
 
 
 class Question(BaseModel):
@@ -57,6 +62,16 @@ def get_collection():
         raise HTTPException(status_code=503, detail="No index found. Run ingest.py first.")
 
 
+def limit_ask(request: Request):
+    """Refuse the request with 429 before any model call when a limit is reached."""
+    try:
+        ask_limiter.check(client_ip(request))
+    except RateLimitExceeded as exceeded:
+        detail = ("Too many questions per minute, please wait a moment." if exceeded.scope == "per_minute"
+                  else "The daily question limit of this demo is reached; try again tomorrow.")
+        raise HTTPException(status_code=429, detail=detail, headers={"Retry-After": str(exceeded.retry_after)})
+
+
 @app.get("/", include_in_schema=False)
 def root():
     """Send visitors of the bare URL to the interactive API docs."""
@@ -69,7 +84,7 @@ def health():
     return {"status": "ok", "backend": BACKEND}
 
 
-@app.post("/ask", response_model=Answer)
+@app.post("/ask", response_model=Answer, dependencies=[Depends(limit_ask)])
 def ask(body: Question):
     if not body.question.strip():
         raise HTTPException(status_code=400, detail="Question is empty.")
